@@ -20,13 +20,9 @@ class DiFyAppEnum(Enum***REMOVED***:
     DiFy app-key 枚举
     """
 
-    # app-IzudxfuN8uO2bvuCpUHpWhvH 测试环境数据问答key
-    # app-GOyZYgPPO3bg2OvfZIfjGfFz 本地开发环境数据问答key
-    DATABASE_QA = ("DATABASE_QA", "app-GOyZYgPPO3bg2OvfZIfjGfFz", "数据问答"***REMOVED***
+    DATABASE_QA = ("DATABASE_QA", "app-IzudxfuN8uO2bvuCpUHpWhvH", "数据问答"***REMOVED***
 
-    FILEDATA_QA = ("FILEDATA_QA", "", "表格问答"***REMOVED***
-
-    COMMON_QA = ("COMMON_QA", "", "通用问答"***REMOVED***
+    FILEDATA_QA = ("FILEDATA_QA", "app-lL9IirirLhuzbmqipKH6qGZO", "表格问答"***REMOVED***
 
 
 class DataTypeEnum(Enum***REMOVED***:
