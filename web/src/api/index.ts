@@ -28,8 +28,8 @@ export async function createOllama3Stylized(text, qa_type***REMOVED*** {
             Authorization: `Bearer ${token***REMOVED***`
         ***REMOVED***,
   ***REMOVED***
-            query: text,
-            qa_type
+            query: qa_type + ':' + text,
+            qa_type: 'DATABASE_QA' //这里统一使用数据问答
         ***REMOVED******REMOVED***
     ***REMOVED******REMOVED***
     return fetch(req***REMOVED***
