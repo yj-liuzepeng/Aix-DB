@@ -20,9 +20,13 @@ class DiFyAppEnum(Enum***REMOVED***:
     DiFy app-key 枚举
     """
 
-    DATABASE_QA = ("DATABASE_QA", "app-IzudxfuN8uO2bvuCpUHpWhvH", "数据问答"***REMOVED***
+    DATABASE_QA = ("DATABASE_QA", "数据问答"***REMOVED***
 
-    FILEDATA_QA = ("FILEDATA_QA", "app-lL9IirirLhuzbmqipKH6qGZO", "表格问答"***REMOVED***
+    FILEDATA_QA = ("FILEDATA_QA", "表格问答"***REMOVED***
+
+    COMMON_QA = ("COMMON_QA", "通用问答"***REMOVED***
+
+    REPORT_QA = ("REPORT_QA", "报告问答"***REMOVED***
 
 
 class DataTypeEnum(Enum***REMOVED***:
@@ -49,3 +53,5 @@ class DiFyCodeEnum(Enum***REMOVED***:
     MESSAGE = ("message", "答案"***REMOVED***
 
     MESSAGE_END = ("message_end", "结束"***REMOVED***
+
+    MESSAGE_ERROR = ("error", "错误"***REMOVED***

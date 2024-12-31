@@ -5,10 +5,12 @@ import traceback
 from datetime import datetime, timedelta
 
 import jwt
+import requests
 
 from common.exception import MyException
 from common.mysql_util import MysqlUtil
-from constants.code_enum import SysCodeEnum
+from constants.code_enum import SysCodeEnum, DiFyAppEnum
+from constants.dify_rest_api import DiFyRestApi
 
 logger = logging.getLogger(__name__***REMOVED***
 
@@ -84,7 +86,7 @@ async def get_user_info(request***REMOVED*** -> dict:
     return user_info
 
 
-async def add_question_record(user_token, chat_id, question, t02_answer, t04_answer***REMOVED***:
+async def add_question_record(user_token, conversation_id, message_id, task_id, chat_id, question, t02_answer, t04_answer, qa_type***REMOVED***:
     """
     记录用户问答记录，如果记录已存在，则更新之；否则，创建新记录。
     """
@@ -93,6 +95,12 @@ async def add_question_record(user_token, chat_id, question, t02_answer, t04_ans
         user_dict = await decode_jwt_token(user_token***REMOVED***
         user_id = user_dict["id"]
 
+        # 文件问答时保存 minio/key
+        file_key = ""
+        if qa_type == DiFyAppEnum.FILEDATA_QA.value[0]:
+            file_key = question.split("|"***REMOVED***[0]
+            question = question.split("|"***REMOVED***[1]
+
         sql = f"select * from t_user_qa_record where user_id={user_id***REMOVED*** and chat_id='{chat_id***REMOVED***'"
         log_dict = mysql_client.query_mysql_dict(sql***REMOVED***
         if len(log_dict***REMOVED*** > 0:
@@ -100,8 +108,21 @@ async def add_question_record(user_token, chat_id, question, t02_answer, t04_ans
                     where user_id={user_id***REMOVED*** and chat_id='{chat_id***REMOVED***'"""
             mysql_client.update(sql***REMOVED***
         else:
-            insert_params = [user_id, chat_id, question, json.dumps(t02_answer, ensure_ascii=False***REMOVED***]
-            sql = f" insert into t_user_qa_record(user_id,chat_id,question,to2_answer***REMOVED*** values (%s,%s,%s,%s***REMOVED***"
+            insert_params = [
+                user_id,
+                conversation_id,
+                message_id,
+                task_id,
+                chat_id,
+                question,
+                json.dumps(t02_answer, ensure_ascii=False***REMOVED***,
+                qa_type,
+                file_key,
+        ***REMOVED***
+            sql = (
+                f" insert into t_user_qa_record(user_id,conversation_id, message_id, task_id,chat_id,question,to2_answer,qa_type,file_key***REMOVED*** "
+                f"values (%s,%s,%s,%s,%s,%s,%s,%s,%s***REMOVED***"
+            ***REMOVED***
             mysql_client.insert(sql=sql, params=insert_params***REMOVED***
 
     except Exception as e:
@@ -148,7 +169,42 @@ async def query_user_record(user_id, page, limit***REMOVED***:
 
     # 计算偏移量
     offset = (page - 1***REMOVED*** * limit
-    sql = f"""select * from t_user_qa_record where user_id={user_id***REMOVED*** order by id LIMIT {limit***REMOVED*** OFFSET {offset***REMOVED***"""
+    sql = f"""select * from t_user_qa_record where user_id={user_id***REMOVED*** order by id desc LIMIT {limit***REMOVED*** OFFSET {offset***REMOVED***"""
     records = mysql_client.query_mysql_dict(sql***REMOVED***
 
 ***REMOVED***"records": records, "current_page": page, "total_pages": total_pages, "total_count": total_count***REMOVED***
+
+
+def query_user_qa_record(chat_id***REMOVED***:
+    """
+    根据chat_id查询对话记录
+    :param chat_id:
+    :return:
+    """
+    sql = f"select * from t_user_qa_record where chat_id='{chat_id***REMOVED***'"
+    return mysql_client.query_mysql_dict(sql***REMOVED***
+
+
+async def send_dify_feedback(chat_id, rating***REMOVED***:
+    """
+    发送反馈给指定的消息ID。
+
+    :param chat_id: 消息的唯一标识符。
+    :param rating: 反馈评级（例如："like" 或 "dislike"）。
+    :return: 返回服务器响应。
+    """
+    # 查询对话记录
+    qa_record = query_user_qa_record(chat_id***REMOVED***
+    url = DiFyRestApi.replace_path_params(DiFyRestApi.DIFY_REST_FEEDBACK, {"message_id": qa_record[0]["message_id"]***REMOVED******REMOVED***
+    api_key = os.getenv("DIFY_DATABASE_QA_API_KEY"***REMOVED***
+    headers = {"Authorization": f"Bearer {api_key***REMOVED***", "Content-Type": "application/json"***REMOVED***
+    payload = {"rating": rating, "user": "abc-123"***REMOVED***
+
+    response = requests.post(url, headers=headers, json=payload***REMOVED***
+
+    # 检查请求是否成功
+    if response.status_code == 200:
+        logger.info("Feedback successfully sent."***REMOVED***
+    else:
+        logger.error(f"Failed to send feedback. Status code: {response.status_code***REMOVED***,Response body: {response.text***REMOVED***"***REMOVED***
+        raise

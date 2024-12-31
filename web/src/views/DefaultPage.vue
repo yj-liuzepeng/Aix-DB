@@ -36,20 +36,7 @@
 ***REMOVED***
         <div class="content">
   ***REMOVED***class="card-one">
-                <h2 class="title">数据问答</h2>
-                <p class="card-subtitle">基于大模型的数据问答</p>
-                <ul>
-                    <li
-                        v-for="(item, index***REMOVED*** in hotSearchItems"
-                        :key="index"
-                        class="list-item"
-          ***REMOVED***
-                      ***REMOVED***{ item ***REMOVED******REMOVED***
-                    </li>
-                </ul>
-***REMOVED***
-  ***REMOVED***class="card-two">
-                <h2 class="title">通用问答</h2>
+                <h4 class="title">通用问答</h4>
                 <p class="card-subtitle">基于RAG大模型的通用问答</p>
                 <ul>
                     <li
@@ -61,8 +48,21 @@
                     </li>
                 </ul>
 ***REMOVED***
+  ***REMOVED***class="card-two">
+                <h4 class="title">数据问答</h4>
+                <p class="card-subtitle">基于大模型的数据问答</p>
+                <ul>
+                    <li
+                        v-for="(item, index***REMOVED*** in hotSearchItems"
+                        :key="index"
+                        class="list-item"
+          ***REMOVED***
+                      ***REMOVED***{ item ***REMOVED******REMOVED***
+                    </li>
+                </ul>
+***REMOVED***
   ***REMOVED***class="card-three">
-                <h2 class="title">表格问答</h2>
+                <h4 class="title">表格问答</h4>
                 <p class="card-subtitle">基于大模型的表格问答</p>
                 <ul>
                     <li
@@ -118,6 +118,7 @@ body {
 
 .header {
     background-color: #f6f7fb;
+    /* background: linear-gradient(to right, #f1f0fe, #f3f2ff***REMOVED***; */
   ***REMOVED***
     text-align: center;
   ***REMOVED***
@@ -151,25 +152,32 @@ body {
     display: grid;
     grid-template-columns: repeat(3, 1fr***REMOVED***;
     gap: 20px;
-    margin-top: 20px;
+  ***REMOVED***
 ***REMOVED***
-
-.card-one,
-.card-two,
+.card-one {
+  ***REMOVED***
+  ***REMOVED***
+    background: linear-gradient(to bottom, #f0effe, #d4eefc***REMOVED***;
+***REMOVED***
+.card-two {
+  ***REMOVED***
+  ***REMOVED***
+    background: linear-gradient(to right, #f0effe, #d4eefc***REMOVED***;
+***REMOVED***
 .card-three {
   ***REMOVED***
   ***REMOVED***
-    background: linear-gradient(to left, #f3f2ff, #e1e7fe***REMOVED***;
+    background: linear-gradient(to left, #f0effe, #d4eefc***REMOVED***;
 ***REMOVED***
 .card-subtitle {
 ***REMOVED***/* Remove default margin */
-    font-size: 1em; /* Adjust as needed */
+    font-size: 13px; /* Adjust as needed */
     color: #6c757d; /* Optional: to match the color of .header-subtitle */
 ***REMOVED***
 
 .title {
     color: #333;
-    font-size: 20px;
+    font-size: 17px;
     margin-bottom: 5px;
 ***REMOVED***
 
