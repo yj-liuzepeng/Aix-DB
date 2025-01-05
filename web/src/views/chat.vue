@@ -128,7 +128,7 @@ const currentRenderIndex = ref(0***REMOVED***
 //图表子组件渲染完毕
 const onChartReady = (index***REMOVED*** => {
     if (index < conversationItems.value.length***REMOVED*** {
-        console.log('onChartReady', index***REMOVED***
+        // console.log('onChartReady', index***REMOVED***
         currentRenderIndex.value = index
         stylizingLoading.value = false
     ***REMOVED***
@@ -209,23 +209,23 @@ const contentLoadingStates = ref(
     visibleConversationItems.value.map((***REMOVED*** => false***REMOVED***
 ***REMOVED***
 
-watch(
-    currentRenderIndex,
-    (newValue, oldValue***REMOVED*** => {
-        console.log('currentRenderIndex 新值:', newValue***REMOVED***
-        console.log('currentRenderIndex 旧值:', oldValue***REMOVED***
-    ***REMOVED***,
-  ***REMOVED*** immediate: true ***REMOVED***
-***REMOVED***
+// watch(
+//     currentRenderIndex,
+//     (newValue, oldValue***REMOVED*** => {
+//         console.log('currentRenderIndex 新值:', newValue***REMOVED***
+//         console.log('currentRenderIndex 旧值:', oldValue***REMOVED***
+//     ***REMOVED***,
+//   ***REMOVED*** immediate: true ***REMOVED***
+// ***REMOVED***
 
-watch(
-    conversationItems,
-    (newValue, oldValue***REMOVED*** => {
-        console.log('visibleConversationItems 新值:', newValue***REMOVED***
-        console.log('visibleConversationItems 旧值:', oldValue***REMOVED***
-    ***REMOVED***,
-  ***REMOVED*** immediate: true ***REMOVED***
-***REMOVED***
+// watch(
+//     conversationItems,
+//     (newValue, oldValue***REMOVED*** => {
+//         console.log('visibleConversationItems 新值:', newValue***REMOVED***
+//         console.log('visibleConversationItems 旧值:', oldValue***REMOVED***
+//     ***REMOVED***,
+//   ***REMOVED*** immediate: true ***REMOVED***
+// ***REMOVED***
 
 // chat_id定义
 const uuid = ref(''***REMOVED***
@@ -457,10 +457,29 @@ const markdownPreviews = ref<Array<HTMLElement | null>>([]***REMOVED*** // 初�
 const rowProps = (row: any***REMOVED*** => {
 ***REMOVED***
         onClick: (***REMOVED*** => {
-            if (row.index == 0***REMOVED*** {
-                scrollToItem(0***REMOVED***
+            suggested_array.value = []
+            console.log('rowProps', row.index***REMOVED***
+            if (row.index == tableData.value.length - 1***REMOVED*** {
+                if (conversationItems.value.length === 0***REMOVED*** {
+                    // console.log('fetchConversationHistory'***REMOVED***
+                    fetchConversationHistory(
+                        isInit,
+                        conversationItems,
+                        tableData,
+                        currentRenderIndex
+                    ***REMOVED***
+                ***REMOVED***
+                //关闭默认页面
+                showDefaultPage.value = false
+                scrollToBottom(***REMOVED***
             ***REMOVED*** else {
-                scrollToItem(row.index + 1***REMOVED***
+                if (row.index == 0***REMOVED*** {
+                    scrollToItem(0***REMOVED***
+                ***REMOVED*** else if (row.index < 2***REMOVED*** {
+                    scrollToItem(row.index + 1***REMOVED***
+                ***REMOVED*** else {
+                    scrollToItem(row.index + 2***REMOVED***
+                ***REMOVED***
             ***REMOVED***
         ***REMOVED***
     ***REMOVED***
@@ -486,10 +505,9 @@ const setMarkdownPreview = (index: number, el: any***REMOVED*** => {
 // 滚动到指定位置的方法
 const scrollToItem = (index: number***REMOVED*** => {
     //判断默认页面是否显示或对话历史是否初始化
-    if (
-        (!showDefaultPage.value && !isInit.value***REMOVED*** ||
-        conversationItems.value.length === 0
-    ***REMOVED*** {
+    //(!showDefaultPage.value && !isInit.value***REMOVED*** ||
+    if (conversationItems.value.length === 0***REMOVED*** {
+        console.log('fetchConversationHistory'***REMOVED***
         fetchConversationHistory(
             isInit,
             conversationItems,
@@ -501,7 +519,11 @@ const scrollToItem = (index: number***REMOVED*** => {
     //关闭默认页面
     showDefaultPage.value = false
     if (markdownPreviews.value[index]***REMOVED*** {
-        markdownPreviews.value[index].scrollIntoView({ behavior: 'smooth' ***REMOVED******REMOVED***
+        markdownPreviews.value[index].scrollIntoView({
+            behavior: 'smooth',
+            block: 'start',
+            inline: 'nearest'
+        ***REMOVED******REMOVED***
     ***REMOVED***
 ***REMOVED***
 
