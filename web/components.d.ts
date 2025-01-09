@@ -31,6 +31,7 @@ declare module 'vue' {
     NDialogProvider: typeof import('naive-ui'***REMOVED***['NDialogProvider']
     NDivider: typeof import('naive-ui'***REMOVED***['NDivider']
     NDropdown: typeof import('naive-ui'***REMOVED***['NDropdown']
+    NEmpty: typeof import('naive-ui'***REMOVED***['NEmpty']
     NFloatButton: typeof import('naive-ui'***REMOVED***['NFloatButton']
     NIcon: typeof import('naive-ui'***REMOVED***['NIcon']
     NInput: typeof import('naive-ui'***REMOVED***['NInput']
