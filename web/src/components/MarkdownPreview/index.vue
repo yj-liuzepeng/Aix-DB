@@ -174,6 +174,7 @@ const readTextStream = async (***REMOVED*** => {
 
                 break
             ***REMOVED***
+
             //每条消息换行显示
             textBuffer.value += stream.content + '\n'
 
@@ -610,7 +611,7 @@ const onChartCompletedReader = function (***REMOVED*** {
     margin-right: 10%;
     background-color: #ffffff;
     // background: linear-gradient(to right, #f0effe, #d4eefc***REMOVED***;
-    padding: 2px 18px;
+    padding: 4px 18px;
     font-family: 'PMingLiU';
     border-top-right-radius: 15px;
     border-top-left-radius: 15px;
@@ -744,5 +745,8 @@ const onChartCompletedReader = function (***REMOVED*** {
         border-color: #635eed;
         color: #635eed;
     ***REMOVED***
+    // think {
+    //     color: #635eed;
+    // ***REMOVED***
 ***REMOVED***
 ***REMOVED***
