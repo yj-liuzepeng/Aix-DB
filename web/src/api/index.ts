@@ -209,7 +209,7 @@ export async function query_demand_records(page, limit***REMOVED*** {
 
 /**
  * 保存项目信息
- * @param project_data b
+ * @param project_data
  * @returns
  */
 export async function insert_demand_manager(project_data***REMOVED*** {
@@ -248,6 +248,29 @@ export async function delete_demand_records(id***REMOVED*** {
         ***REMOVED***,
   ***REMOVED***
             id
+        ***REMOVED******REMOVED***
+    ***REMOVED******REMOVED***
+    return fetch(req***REMOVED***
+***REMOVED***
+
+/**
+ * 抽取功能点
+ * @param doc_id
+ * @returns
+ */
+export async function abstract_doc_func(doc_id***REMOVED*** {
+    const userStore = useUserStore(***REMOVED***
+    const token = userStore.getUserToken(***REMOVED***
+    const url = new URL(`${location.origin***REMOVED***/sanic/ta/abstract_doc_func`***REMOVED***
+    const req = new Request(url, {
+        mode: 'cors',
+        method: 'post',
+  ***REMOVED***
+    ***REMOVED***
+            Authorization: `Bearer ${token***REMOVED***` // 添加 token 到头部
+        ***REMOVED***,
+  ***REMOVED***
+            doc_id
         ***REMOVED******REMOVED***
     ***REMOVED******REMOVED***
     return fetch(req***REMOVED***
