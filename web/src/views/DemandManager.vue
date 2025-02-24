@@ -34,7 +34,7 @@
             ***REMOVED***
               ***REMOVED***class="card-footer">
                             <span class="card-info"
-                      ***REMOVED***抽取功能: {{ item.fun_num ***REMOVED******REMOVED***</span
+                      ***REMOVED***功能点: {{ item.fun_num ***REMOVED******REMOVED***</span
                   ***REMOVED***
                             <span class="card-date">{{
                                 item.create_time
@@ -319,7 +319,7 @@ onMounted((***REMOVED*** => {
 
 .card {
     width: 250px;
-    margin-top: 40px;
+  ***REMOVED***
   ***REMOVED***
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1***REMOVED***;
     background-color: #ffffff;
