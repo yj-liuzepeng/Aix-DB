@@ -28,7 +28,8 @@ onMounted((***REMOVED*** => {
         isInit,
         conversationItems,
         tableData,
-        currentRenderIndex
+        currentRenderIndex,
+        ''
     ***REMOVED***
 ***REMOVED******REMOVED***
 
@@ -45,7 +46,8 @@ function handleModalClose(value***REMOVED*** {
         isInit,
         conversationItems,
         tableData,
-        currentRenderIndex
+        currentRenderIndex,
+        ''
     ***REMOVED***
 ***REMOVED***
 
@@ -472,7 +474,8 @@ const rowProps = (row: any***REMOVED*** => {
                     isInit,
                     conversationItems,
                     tableData,
-                    currentRenderIndex
+                    currentRenderIndex,
+                    ''
                 ***REMOVED***
             ***REMOVED***
 
@@ -482,7 +485,8 @@ const rowProps = (row: any***REMOVED*** => {
                         isInit,
                         conversationItems,
                         tableData,
-                        currentRenderIndex
+                        currentRenderIndex,
+                        ''
                     ***REMOVED***
                 ***REMOVED***
                 //关闭默认页面
@@ -528,7 +532,8 @@ const scrollToItem = (index: number***REMOVED*** => {
             isInit,
             conversationItems,
             tableData,
-            currentRenderIndex
+            currentRenderIndex,
+            ''
         ***REMOVED***
     ***REMOVED***
 
@@ -650,7 +655,6 @@ const hideScrollbar = (***REMOVED*** => {
 ***REMOVED***
 
 const searchText = ref(''***REMOVED***
-
 const searchChatRef = useTemplateRef('searchChatRef'***REMOVED***
 const isFocusSearchChat = ref(false***REMOVED***
 const onFocusSearchChat = (***REMOVED*** => {
@@ -661,8 +665,25 @@ const onFocusSearchChat = (***REMOVED*** => {
 ***REMOVED***
 const onBlurSearchChat = (***REMOVED*** => {
     if (searchText.value***REMOVED*** return
-
     isFocusSearchChat.value = false
+***REMOVED***
+
+// 在script部分添加搜索处理函数
+const handleSearch = (***REMOVED*** => {
+    tableData.value = []
+    fetchConversationHistory(
+        isInit,
+        conversationItems,
+        tableData,
+        currentRenderIndex,
+        searchText.value
+    ***REMOVED***
+***REMOVED***
+
+const handleClear = (***REMOVED*** => {
+    if (!showDefaultPage.value***REMOVED*** {
+        newChat(***REMOVED***
+    ***REMOVED***
 ***REMOVED***
 ***REMOVED***
 ***REMOVED***
@@ -732,6 +753,9 @@ const onBlurSearchChat = (***REMOVED*** => {
                             clearable
                             @click="onFocusSearchChat(***REMOVED***"
                             @blur="onBlurSearchChat(***REMOVED***"
+                            @input="handleSearch(***REMOVED***"
+                            @keyup.enter="handleSearch(***REMOVED***"
+                            @clear="handleClear(***REMOVED***"
                             :class="{
                                 focus: isFocusSearchChat
                             ***REMOVED***"
