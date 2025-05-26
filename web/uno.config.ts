@@ -1,3 +1,5 @@
+import path from 'node:path'
+import { FileSystemIconLoader ***REMOVED*** from '@iconify/utils/lib/loader/node-loaders'
 import presetRemToPx from '@unocss/preset-rem-to-px'
 
 import {
@@ -5,7 +7,7 @@ import {
   presetAttributify,
   presetIcons,
   presetWind3,
-  toEscapedSelector,
+  transformerAttributifyJsx,
   transformerDirectives,
 ***REMOVED*** from 'unocss'
 
@@ -14,13 +16,25 @@ export default defineConfig({
   presets: [
     presetWind3(***REMOVED***,
     presetAttributify(***REMOVED***,
-    presetIcons(***REMOVED***,
+    presetIcons({
+      customizations: {
+        transform(svg***REMOVED*** {
+          return svg.replace(/#fff/, 'currentColor'***REMOVED***
+        ***REMOVED***,
+      ***REMOVED***,
+      collections: {
+        'my-svg': FileSystemIconLoader(
+          path.join(__dirname, 'src/assets/svg'***REMOVED***,
+        ***REMOVED***,
+      ***REMOVED***,
+    ***REMOVED******REMOVED***,
     presetRemToPx({
       baseFontSize: 4,
     ***REMOVED******REMOVED***,
   ],
   transformers: [
     transformerDirectives(***REMOVED***,
+    transformerAttributifyJsx(***REMOVED***,
   ],
   theme: {
     colors: {
@@ -36,29 +50,6 @@ export default defineConfig({
     [
       'navbar-shadow', {
         'box-shadow': '0 1px 4px rgb(0 21 41 / 8%***REMOVED***',
-      ***REMOVED***,
-***REMOVED***,
-    [
-      /^wrapper-dialog-(.+***REMOVED***$/,
-      ([, name], { rawSelector, theme ***REMOVED******REMOVED*** => {
-        const themeColor = (theme as any***REMOVED***.colors
-        const selector = toEscapedSelector(rawSelector***REMOVED***
-        return `
-          ${selector***REMOVED*** {
-          ***REMOVED***
-          ***REMOVED***
-          ***REMOVED***
-            overflow: hidden;
-          ***REMOVED***
-          ${selector***REMOVED*** .n-dialog__title {
-            padding: var(--n-padding***REMOVED***;
-          ***REMOVED***
-          ${selector***REMOVED*** .n-dialog__content {
-          ***REMOVED***
-          ***REMOVED***
-            min-height: 0;
-          ***REMOVED***
-***REMOVED***
       ***REMOVED***,
 ***REMOVED***,
   ],

@@ -179,7 +179,7 @@ const pdfDocument = ref<RefDocsItem>({
 <script lang="ts">***REMOVED***
 
 ***REMOVED***
-  <LayoutCenterPanel>
+  <div size-full>
     <n-space vertical size="large">
       <n-layout
         has-sider
@@ -353,10 +353,10 @@ const pdfDocument = ref<RefDocsItem>({
     >
       选择文件
     </n-upload>
-  </LayoutCenterPanel>
+  </div>
 ***REMOVED***
 
-***REMOVED***
+<style lang="scss" scoped>
 .icon-button {
 ***REMOVED***
   align-items: center;

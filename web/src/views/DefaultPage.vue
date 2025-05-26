@@ -107,6 +107,7 @@ body {
 ***REMOVED***
 
 .container {
+***REMOVED***
   max-width: 900px;
 ***REMOVED***
 ***REMOVED***
