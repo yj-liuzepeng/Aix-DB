@@ -102,7 +102,7 @@ export const fetchConversationHistory = async function fetchConversationHistory(
     if (res.status === 401***REMOVED*** {
       userStore.logout(***REMOVED***
       setTimeout((***REMOVED*** => {
-        router.push('/login'***REMOVED***
+        router.replace('/login'***REMOVED***
       ***REMOVED***, 500***REMOVED***
     ***REMOVED*** else if (res.ok***REMOVED*** {
       const data = await res.json(***REMOVED***

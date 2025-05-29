@@ -63,61 +63,59 @@ const sendMessage = async (***REMOVED*** => {
 ***REMOVED***
 
 ***REMOVED***
-  <LayoutCenterPanel>
-  ***REMOVED***
-      <!-- 移动说明区块到 n-layout 外部 -->
-      <div class="note-box">
-        <p>MCP功能说明：</p>
+***REMOVED***
+    <!-- 移动说明区块到 n-layout 外部 -->
+    <div class="note-box">
+      <p>MCP功能说明：</p>
+      <ul>
+        <li>
+          目前该功能只做了简单的客户端对接示例;
+          下一版本对接qwen3mcp能力实现多工具协调调用
+        </li>
+        <li>
+          第一步 申请高德API-KEY 并启动高德 MCP Server，命令如下：
+        </li>
+        <li>
+          npx -y supergateway --stdio
+          "AMAP_MAPS_API_KEY=高德API-KEY npx -y
+          @amap/amap-maps-mcp-server" --cors
+        </li>
+        <li>
+          通过 maps_weather 工具查询实时天气,输出城市名称如:杭州
+        </li>
+      </ul>
+***REMOVED***
+
+    <div class="mcp-client">
+      <h1>MCP Client</h1>
+      <p>Connection Status: {{ connectionStatus ***REMOVED******REMOVED***</p>
+
+      <!-- 输入框和按钮 -->
+      <div>
+        <input
+          v-model="message"
+          style="width: 280px; height: 25px"
+          placeholder="Enter message to send"
+        >
+        <button
+          style="height: 25px; margin-left: 2px; width: 80px"
+          @click="sendMessage"
+        >
+          Send
+        </button>
+***REMOVED***
+
+      <!-- 消息日志 -->
+      <div class="message-log">
+        <h3>Message Log:</h3>
         <ul>
-          <li>
-            目前该功能只做了简单的客户端对接示例;
-            下一版本对接qwen3mcp能力实现多工具协调调用
-          </li>
-          <li>
-            第一步 申请高德API-KEY 并启动高德 MCP Server，命令如下：
-          </li>
-          <li>
-            npx -y supergateway --stdio
-            "AMAP_MAPS_API_KEY=高德API-KEY npx -y
-            @amap/amap-maps-mcp-server" --cors
-          </li>
-          <li>
-            通过 maps_weather 工具查询实时天气,输出城市名称如:杭州
-          </li>
+        ***REMOVED***{
+            messages
+          ***REMOVED******REMOVED***
         </ul>
 ***REMOVED***
-
-      <div class="mcp-client">
-        <h1>MCP Client</h1>
-        <p>Connection Status: {{ connectionStatus ***REMOVED******REMOVED***</p>
-
-        <!-- 输入框和按钮 -->
-        <div>
-          <input
-            v-model="message"
-            style="width: 280px; height: 25px"
-            placeholder="Enter message to send"
-***REMOVED***
-          <button
-            style="height: 25px; margin-left: 2px; width: 80px"
-            @click="sendMessage"
-***REMOVED***
-            Send
 ***REMOVED***
 ***REMOVED***
-
-        <!-- 消息日志 -->
-        <div class="message-log">
-          <h3>Message Log:</h3>
-          <ul>
-          ***REMOVED***{
-              messages
-            ***REMOVED******REMOVED***
-          </ul>
-***REMOVED***
-***REMOVED***
-  ***REMOVED***
-  </LayoutCenterPanel>
 ***REMOVED***
 
 ***REMOVED***
@@ -175,7 +173,6 @@ li {
 ***REMOVED***
 ***REMOVED***
 ***REMOVED***
-  margin-right: 2px;
 ***REMOVED***
 ***REMOVED***
 ***REMOVED***

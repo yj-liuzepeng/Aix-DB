@@ -116,6 +116,8 @@ declare global {
   const until: typeof import('@vueuse/core'***REMOVED***['until']
   const useActiveElement: typeof import('@vueuse/core'***REMOVED***['useActiveElement']
   const useAnimate: typeof import('@vueuse/core'***REMOVED***['useAnimate']
+  const useAppStore: typeof import('./src/store/hooks/useAppStore'***REMOVED***['useAppStore']
+  const useAppStoreWithOut: typeof import('./src/store/hooks/useAppStore'***REMOVED***['useAppStoreWithOut']
   const useArrayDifference: typeof import('@vueuse/core'***REMOVED***['useArrayDifference']
   const useArrayEvery: typeof import('@vueuse/core'***REMOVED***['useArrayEvery']
   const useArrayFilter: typeof import('@vueuse/core'***REMOVED***['useArrayFilter']
@@ -434,6 +436,8 @@ declare module 'vue' {
     readonly until: UnwrapRef<typeof import('@vueuse/core'***REMOVED***['until']>
     readonly useActiveElement: UnwrapRef<typeof import('@vueuse/core'***REMOVED***['useActiveElement']>
     readonly useAnimate: UnwrapRef<typeof import('@vueuse/core'***REMOVED***['useAnimate']>
+    readonly useAppStore: UnwrapRef<typeof import('./src/store/hooks/useAppStore'***REMOVED***['useAppStore']>
+    readonly useAppStoreWithOut: UnwrapRef<typeof import('./src/store/hooks/useAppStore'***REMOVED***['useAppStoreWithOut']>
     readonly useArrayDifference: UnwrapRef<typeof import('@vueuse/core'***REMOVED***['useArrayDifference']>
     readonly useArrayEvery: UnwrapRef<typeof import('@vueuse/core'***REMOVED***['useArrayEvery']>
     readonly useArrayFilter: UnwrapRef<typeof import('@vueuse/core'***REMOVED***['useArrayFilter']>
