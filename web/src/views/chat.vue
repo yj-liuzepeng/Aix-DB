@@ -20,14 +20,26 @@ const businessStore = useBusinessStore(***REMOVED***
 // 是否是刚登录到系统 批量渲染对话记录
 const isInit = ref(false***REMOVED***
 
+//是否查看历史消息标识
+const isView=ref(false***REMOVED***
+
 // 使用 onMounted 生命周期钩子加载历史对话
-onMounted((***REMOVED*** => {
-  fetchConversationHistory(
-    isInit,
-    conversationItems,
-    tableData,
-    currentRenderIndex,
-    '',
+// 新增：加载历史对话的状态
+const isLoadingHistory = ref(false***REMOVED***
+
+// 使用 onMounted 生命周期钩子加载历史对话
+onBeforeMount((***REMOVED*** => {
+***REMOVED***
+    // 开始加载历史对话
+    isLoadingHistory.value = true
+    isInit.value = true
+    fetchConversationHistory(isInit, conversationItems, tableData, currentRenderIndex, null, ''***REMOVED***
+  ***REMOVED*** catch (error***REMOVED*** {
+    console.error('加载历史对话失败:', error***REMOVED***
+    window.$ModalMessage.error('加载历史对话失败，请重试'***REMOVED***
+  ***REMOVED*** finally {
+    // 加载完成
+    isLoadingHistory.value = false
   ***REMOVED***
 ***REMOVED******REMOVED***
 
@@ -45,6 +57,7 @@ function handleModalClose(value***REMOVED*** {
     conversationItems,
     tableData,
     currentRenderIndex,
+    null,
     '',
   ***REMOVED***
 ***REMOVED***
@@ -119,7 +132,9 @@ const onCompletedReader = (index: number***REMOVED*** => {
   ***REMOVED***
 
   // 查询是推荐列表
-  query_dify_suggested(***REMOVED***
+  if(isView.value==false***REMOVED***{
+    query_dify_suggested(***REMOVED***
+  ***REMOVED***
 ***REMOVED***
 
 // 当前索引位置
@@ -181,8 +196,9 @@ const onBelittleFeedback = async (index: number***REMOVED*** => {
 
 // 侧边栏对话历史
 interface TableItem {
-  index: number
+  uuid: string
   key: string
+  chat_id: string
 ***REMOVED***
 const tableData = ref<TableItem[]>([]***REMOVED***
 const tableRef = ref(null***REMOVED***
@@ -190,6 +206,7 @@ const tableRef = ref(null***REMOVED***
 // 保存对话历史记录
 const conversationItems = ref<
   Array<{
+    uuid: string
     chat_id: string
     qa_type: string
     question: string
@@ -208,24 +225,6 @@ const contentLoadingStates = ref(
   visibleConversationItems.value.map((***REMOVED*** => false***REMOVED***,
 ***REMOVED***
 
-// watch(
-//     currentRenderIndex,
-//     (newValue, oldValue***REMOVED*** => {
-//         console.log('currentRenderIndex 新值:', newValue***REMOVED***
-//         console.log('currentRenderIndex 旧值:', oldValue***REMOVED***
-//     ***REMOVED***,
-//   ***REMOVED*** immediate: true ***REMOVED***
-// ***REMOVED***
-
-// watch(
-//     conversationItems,
-//     (newValue, oldValue***REMOVED*** => {
-//         console.log('visibleConversationItems 新值:', newValue***REMOVED***
-//         console.log('visibleConversationItems 旧值:', oldValue***REMOVED***
-//     ***REMOVED***,
-//   ***REMOVED*** immediate: true ***REMOVED***
-// ***REMOVED***
-
 // chat_id定义
 const uuids = ref<Record<string, string>>({***REMOVED******REMOVED*** // 改为对象存储不同问答类型的uuid
 
@@ -236,6 +235,9 @@ const handleCreateStylized = async (send_text = ''***REMOVED*** => {
 
   // 设置初始化数据标识为false
   isInit.value = false
+
+  // 设置查看历史消息标识为false
+  isView.value = false
 
   // 清空推荐列表
   suggested_array.value = []
@@ -270,10 +272,13 @@ const handleCreateStylized = async (send_text = ''***REMOVED*** => {
     showDefaultPage.value = false
   ***REMOVED***
 
+    //自定义id
+  const uuid_str= uuidv4(***REMOVED***
   // 加入对话历史用于左边表格渲染
   const newItem = {
-    index: tableData.value.length, // 或者根据你的需求计算新的索引
+    uuid: uuid_str, // 或者根据你的需求计算新的索引
     key: inputTextString.value ? inputTextString.value : send_text,
+    chat_id: uuids.value[qa_type.value],
   ***REMOVED***
   // 使用 unshift 方法将新元素添加到数组的最前面
   tableData.value.unshift(newItem***REMOVED***
@@ -289,9 +294,11 @@ const handleCreateStylized = async (send_text = ''***REMOVED*** => {
     uuids.value[qa_type.value] = uuidv4(***REMOVED***
   ***REMOVED***
 
+
   if (textContent***REMOVED*** {
     // 存储该轮用户对话消息
     conversationItems.value.push({
+      uuid: uuid_str,
       chat_id: uuids.value[qa_type.value],
       qa_type: qa_type.value,
       question: textContent,
@@ -305,7 +312,8 @@ const handleCreateStylized = async (send_text = ''***REMOVED*** => {
   ***REMOVED***
 
   const { error, reader, needLogin ***REMOVED***
-        = await businessStore.createAssistantWriterStylized(
+    = await businessStore.createAssistantWriterStylized(
+          uuid_str,
           uuids.value[qa_type.value],
           currentChatId.value,
         ***REMOVED***
@@ -333,6 +341,7 @@ const handleCreateStylized = async (send_text = ''***REMOVED*** => {
     outputTextReader.value = reader
     // 存储该轮AI回复的消息
     conversationItems.value.push({
+      uuid: uuid_str,
       chat_id: uuids.value[qa_type.value],
       qa_type: qa_type.value,
       question: textContent,
@@ -350,12 +359,13 @@ const handleCreateStylized = async (send_text = ''***REMOVED*** => {
 
 // 滚动到底部
 const scrollToBottom = (***REMOVED*** => {
-  nextTick((***REMOVED*** => {
-    if (messagesContainer.value***REMOVED*** {
-      messagesContainer.value.scrollTop
-                = messagesContainer.value.scrollHeight
-    ***REMOVED***
-  ***REMOVED******REMOVED***
+  if (isView.value == false***REMOVED*** {
+     nextTick((***REMOVED*** => {
+      if (messagesContainer.value***REMOVED*** {
+        messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight
+      ***REMOVED***
+    ***REMOVED******REMOVED***
+  ***REMOVED***
 ***REMOVED***
 
 const keys = useMagicKeys(***REMOVED***
@@ -462,92 +472,89 @@ const finish_upload = (res***REMOVED*** => {
 
 // 下面方法用于左侧对话列表点击 右侧内容滚动
 // 用于存储每个 MarkdownPreview 容器的引用
-const markdownPreviews = ref<Array<HTMLElement | null>>([]***REMOVED*** // 初始化为空数组
+// const markdownPreviews = ref<Array<HTMLElement | null>>([]***REMOVED*** // 初始化为空数组
+  const markdownPreviews = ref<Map<String, HTMLElement | null>>(new Map(***REMOVED******REMOVED***
 
-// 表格行点击事件
+
+  // 表格行点击事件
+const currentIndex = ref<number | null>(null***REMOVED***
 const rowProps = (row: any***REMOVED*** => {
   return {
-    onClick: (***REMOVED*** => {
+    class: [
+      'cursor-pointer select-none',
+      currentIndex.value === row.uuid && '[&_.n-data-table-td]:bg-#d5dcff',
+***REMOVED***.join(' '***REMOVED***,
+    onClick: async(***REMOVED*** => {
+      currentIndex.value = row.uuid
       suggested_array.value = []
-      // 这里*2 是因为对话渲染成两个
-      if (tableData.value.length * 2 !== conversationItems.value.length***REMOVED*** {
-        fetchConversationHistory(
+
+      isInit.value = false
+      isView.value = true
+
+      // 这里根据chat_id 过滤同一轮对话数据
+      fetchConversationHistory(
           isInit,
           conversationItems,
           tableData,
           currentRenderIndex,
-          '',
+          row,
+          ''
         ***REMOVED***
-      ***REMOVED***
 
-      if (row.index === tableData.value.length - 1***REMOVED*** {
-        if (conversationItems.value.length === 0***REMOVED*** {
-          fetchConversationHistory(
-            isInit,
-            conversationItems,
-            tableData,
-            currentRenderIndex,
-            '',
-          ***REMOVED***
-        ***REMOVED***
-        // 关闭默认页面
-        showDefaultPage.value = false
-        scrollToBottom(***REMOVED***
-      ***REMOVED*** else {
-        if (row.index === 0***REMOVED*** {
-          scrollToItem(0***REMOVED***
-        ***REMOVED*** else if (row.index < 2***REMOVED*** {
-          scrollToItem(row.index + 1***REMOVED***
-        ***REMOVED*** else {
-          scrollToItem(row.index + 2***REMOVED***
-        ***REMOVED***
-      ***REMOVED***
+      //关闭默认页面
+      showDefaultPage.value = false
+
+    //   等待 DOM 更新完成
+      await nextTick(***REMOVED***
+    //  滚动到指定位置
+      scrollToItem(row.uuid***REMOVED***;
     ***REMOVED***,
   ***REMOVED***
 ***REMOVED***
 
+// 递归查找最底层的元素
+const findDeepestElement = (element: HTMLElement***REMOVED***: HTMLElement => {
+  if (element.children.length === 0***REMOVED*** {
+    return element;
+  ***REMOVED***
+  return findDeepestElement(element.lastElementChild as HTMLElement***REMOVED***;
+***REMOVED***;
+
 // 设置 markdownPreviews 数组中的元素
-const setMarkdownPreview = (index: number, el: any***REMOVED*** => {
-  if (el && el instanceof HTMLElement***REMOVED*** {
-    // 确保 markdownPreviews 数组的长度与 visibleConversationItems 的长度一致
-    if (index >= markdownPreviews.value.length***REMOVED*** {
-      markdownPreviews.value.push(null***REMOVED***
-    ***REMOVED***
-    markdownPreviews.value[index] = el
-  ***REMOVED*** else if (el && el.value && el.value instanceof HTMLElement***REMOVED*** {
-    // 处理代理对象的情况
-    if (index >= markdownPreviews.value.length***REMOVED*** {
-      markdownPreviews.value.push(null***REMOVED***
-    ***REMOVED***
-    markdownPreviews.value[index] = el.value
+const setMarkdownPreview = (uuid: string, role: string, el: any***REMOVED*** => {
+  if (role === 'user'***REMOVED*** {
+    if (el && el instanceof HTMLElement***REMOVED*** {
+      // 查找最下面的元素
+      const deepestElement = findDeepestElement(el***REMOVED***;
+      markdownPreviews.value.set(uuid, deepestElement***REMOVED***
+    ***REMOVED*** 
   ***REMOVED***
 ***REMOVED***
 
-// 滚动到指定位置的方法
-const scrollToItem = (index: number***REMOVED*** => {
-  // 判断默认页面是否显示或对话历史是否初始化
-  // (!showDefaultPage.value && !isInit.value***REMOVED*** ||
-  if (conversationItems.value.length === 0***REMOVED*** {
-    // console.log('fetchConversationHistory'***REMOVED***
-    fetchConversationHistory(
-      isInit,
-      conversationItems,
-      tableData,
-      currentRenderIndex,
-      '',
-    ***REMOVED***
-  ***REMOVED***
+//滚动到指定位置的方法
+const scrollToItem = async (uuid: string***REMOVED*** => {
+  // 等待 DOM 更新完成
+  await nextTick(***REMOVED***;
+  await nextTick(***REMOVED***;
 
-  // 关闭默认页面
-  showDefaultPage.value = false
-  if (markdownPreviews.value[index]***REMOVED*** {
-    markdownPreviews.value[index].scrollIntoView({
-      behavior: 'smooth',
-      block: 'start',
-      inline: 'nearest',
-    ***REMOVED******REMOVED***
-  ***REMOVED***
-***REMOVED***
+  const element = markdownPreviews.value.get(uuid***REMOVED***;
+
+  if (element && element instanceof HTMLElement***REMOVED*** {
+    ***REMOVED***
+        // 强制重排，确保元素位置和尺寸正确
+        console.log('UUID:', uuid***REMOVED***;
+        console.log('Element:', element***REMOVED***;
+        void element.offsetWidth; 
+        element.scrollIntoView({
+          behavior: 'smooth',
+          block: 'nearest',
+          inline: 'nearest',
+        ***REMOVED******REMOVED***
+      ***REMOVED*** catch (error***REMOVED*** {
+        console.error('滚动到指定元素时出错:', error***REMOVED***;
+      ***REMOVED***
+    ***REMOVED***
+***REMOVED***;
 
 // 默认选中的对话类型
 const qa_type = ref('COMMON_QA'***REMOVED***
@@ -680,6 +687,7 @@ const handleSearch = (***REMOVED*** => {
     conversationItems,
     tableData,
     currentRenderIndex,
+    null,
     searchText.value,
   ***REMOVED***
 ***REMOVED***
@@ -784,11 +792,9 @@ const handleClear = (***REMOVED*** => {
               ***REMOVED***,
         ***REMOVED***"
             :data="tableData"
+            :loading="isLoadingHistory"
             :row-props="rowProps"
 ***REMOVED***
-            <!-- <template #empty>
-                              <div></div>
-                          ***REMOVED*** -->
           </n-data-table>
         </n-layout-content>
     ***REMOVED***
@@ -863,7 +869,7 @@ const handleClear = (***REMOVED*** => {
           <div
             v-for="(item, index***REMOVED*** in visibleConversationItems"
             :key="index"
-            :ref="(el***REMOVED*** => setMarkdownPreview(index, el***REMOVED***"
+            :ref="(el***REMOVED*** => setMarkdownPreview(item.uuid,item.role, el***REMOVED***"
             class="mb-4"
 ***REMOVED***
   ***REMOVED***v-if="item.role === 'user'">
@@ -933,6 +939,7 @@ const handleClear = (***REMOVED*** => {
                 :reader="item.reader"
                 :model="defaultLLMTypeName"
                 :isInit="isInit"
+                :isView="isView"
                 :qaType="`${item.qa_type***REMOVED***`"
                 :chart-id="`${index***REMOVED***devID${generateRandomSuffix(***REMOVED******REMOVED***`"
                 :parentScollBottomMethod="scrollToBottom"
