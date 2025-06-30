@@ -5,7 +5,8 @@ import * as TransformUtils from '@/components/MarkdownPreview/transform'
 export interface BusinessState {
   writerList: any
   qa_type: any
-  file_url: any
+  file_url: any,
+  task_id: any
 ***REMOVED***
 
 export const useBusinessStore = defineStore('business-store', {
@@ -16,6 +17,8 @@ export const useBusinessStore = defineStore('business-store', {
       qa_type: 'COMMON_QA',
       // 全局保存文件问答地址
       file_url: '',
+      // 全局保存dify 任务id
+      task_id: '',
     ***REMOVED***
   ***REMOVED***,
   actions: {
@@ -36,6 +39,12 @@ export const useBusinessStore = defineStore('business-store', {
     ***REMOVED***,
     clearWriterList(***REMOVED*** {
       this.writerList = []
+    ***REMOVED***,
+    update_task_id(task_id***REMOVED*** {
+      this.task_id = task_id
+    ***REMOVED***,
+    clear_task_id(***REMOVED*** {
+      this.task_id = ''
     ***REMOVED***,
     /**
      * Event Stream 调用大模型python服务接口
@@ -70,6 +79,12 @@ export const useBusinessStore = defineStore('business-store', {
                   ***REMOVED***
                       const jsonChunk = JSON.parse(
                         chunk.split('data:'***REMOVED***[1],
+                      ***REMOVED***
+                      if (jsonChunk.task_id***REMOVED*** {
+                        // 调用已有的更新方法来更新 task_id
+                        this.update_task_id(
+                          jsonChunk.task_id,
+                        ***REMOVED***
                       ***REMOVED***
                       switch (jsonChunk.dataType***REMOVED*** {
                         case 't11':

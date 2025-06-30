@@ -278,3 +278,29 @@ export async function abstract_doc_func(doc_id***REMOVED*** {
   ***REMOVED******REMOVED***
   return fetch(req***REMOVED***
 ***REMOVED***
+
+/**
+ * 停止对话
+ * @param task_id
+ * @param qa_type
+ * @param rating
+ * @returns
+ */
+export async function stop_chat(task_id, qa_type***REMOVED*** {
+  const userStore = useUserStore(***REMOVED***
+  const token = userStore.getUserToken(***REMOVED***
+  const url = new URL(`${location.origin***REMOVED***/sanic/dify/stop_chat`***REMOVED***
+  const req = new Request(url, {
+    mode: 'cors',
+    method: 'post',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token***REMOVED***`, // 添加 token 到头部
+    ***REMOVED***,
+    body: JSON.stringify({
+      task_id,
+      qa_type,
+    ***REMOVED******REMOVED***,
+  ***REMOVED******REMOVED***
+  return fetch(req***REMOVED***
+***REMOVED***

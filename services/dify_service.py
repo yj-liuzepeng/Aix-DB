@@ -148,7 +148,7 @@ class DiFyRequest:
                                         if data_type == DataTypeEnum.ANSWER.value[0]:
                                             await self.send_message(
                                                 res,
-                                              ***REMOVED***"data": {"messageType": "continue", "content": answer***REMOVED***, "dataType": data_type***REMOVED***,
+                                              ***REMOVED***"data": {"messageType": "continue", "content": answer***REMOVED***, "dataType": data_type, "task_id": task_id***REMOVED***,
                                             ***REMOVED***
 
                                             t02_answer_data.append(answer***REMOVED***
@@ -321,6 +321,7 @@ async def query_dify_suggested(chat_id***REMOVED*** -> dict:
     # 查询对话记录
     qa_record = query_user_qa_record(chat_id***REMOVED***
     url = DiFyRestApi.replace_path_params(DiFyRestApi.DIFY_REST_SUGGESTED, {"message_id": qa_record[0]["message_id"]***REMOVED******REMOVED***
+    logger.info(f"query dify suggested url: {url***REMOVED***"***REMOVED***
     api_key = os.getenv("DIFY_DATABASE_QA_API_KEY"***REMOVED***
     headers = {"Authorization": f"Bearer {api_key***REMOVED***", "Content-Type": "application/json"***REMOVED***
 
@@ -332,4 +333,40 @@ async def query_dify_suggested(chat_id***REMOVED*** -> dict:
         return response.json(***REMOVED***
     else:
         logger.error(f"Failed to send feedback. Status code: {response.status_code***REMOVED***,Response body: {response.text***REMOVED***"***REMOVED***
+        raise
+
+
+async def stop_dify_chat(task_id, qa_type***REMOVED*** -> dict:
+    """
+    停止dify对话流输出
+
+    :param task_id: 任务id。
+    :param qa_type: 问答类型
+    :return: 返回服务器响应。
+    """
+    # 查询对话记录
+    url = DiFyRestApi.replace_path_params(DiFyRestApi.DIFY_REST_STOP, {"task_id": task_id***REMOVED******REMOVED***
+
+    api_key = os.getenv("DIFY_DATABASE_QA_API_KEY"***REMOVED***
+    # 行业报告走的是 报告问答的key
+    if DiFyAppEnum.FILEDATA_QA.value[0] == qa_type:
+        api_key = os.getenv("DIFY_ENTERPRISE_REPORT_API_KEY"***REMOVED***
+
+    headers = {"Authorization": f"Bearer {api_key***REMOVED***", "Content-Type": "application/json"***REMOVED***
+    body = {"user": "abc-123"***REMOVED***
+
+    logger.info(url***REMOVED***
+
+    """
+    data：若传入字典或元组列表，requests 库会把数据编码为表单数据格式（key1=value1&key2=value2）；若传入字节或类文件对象，则直接发送。
+    json：requests 库会自动把传入的 Python 对象序列化为 JSON 字符串，然后发送。
+    """
+    response = requests.post(url, json=body, headers=headers***REMOVED***
+
+    # 检查请求是否成功
+    if response.status_code == 200:
+        logger.info("Stop chat successfully sent."***REMOVED***
+        return response.json(***REMOVED***
+    else:
+        logger.error(f"Failed to stop chat. Status code: {response.status_code***REMOVED***,Response body: {response.text***REMOVED***"***REMOVED***
         raise
