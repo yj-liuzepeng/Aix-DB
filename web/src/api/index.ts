@@ -5,7 +5,7 @@
 /**
  * Event Stream 调用大模型接口 Ollama3 (Fetch 调用***REMOVED***
  */
-export async function createOllama3Stylized(text, qa_type, uuid***REMOVED*** {
+export async function createOllama3Stylized(text, qa_type, uuid,chat_id***REMOVED*** {
   const userStore = useUserStore(***REMOVED***
   const token = userStore.getUserToken(***REMOVED***
   const businessStore = useBusinessStore(***REMOVED***
@@ -16,8 +16,8 @@ export async function createOllama3Stylized(text, qa_type, uuid***REMOVED*** {
   ***REMOVED******REMOVED***
 
   // 文件问答传文件url
-  if (text.includes('总结归纳文档的关键信息'***REMOVED******REMOVED*** {
-    text = `${businessStore.$state.file_url***REMOVED***|总结归纳文档的关键信息`
+  if (text.includes('表格数据'***REMOVED******REMOVED*** {
+    text = `${businessStore.$state.file_url***REMOVED***|${text***REMOVED***`
   ***REMOVED*** else if (qa_type === 'FILEDATA_QA'***REMOVED*** {
     // 表格问答默认带上文件url/key
     text = `${businessStore.$state.file_url***REMOVED***|${text***REMOVED***`
@@ -33,7 +33,8 @@ export async function createOllama3Stylized(text, qa_type, uuid***REMOVED*** {
     body: JSON.stringify({
       query: text,
       qa_type,
-      chat_id: uuid,
+      uuid:uuid,
+      chat_id: chat_id,
     ***REMOVED******REMOVED***,
   ***REMOVED******REMOVED***
   return fetch(req***REMOVED***
@@ -67,7 +68,7 @@ export async function login(username, password***REMOVED*** {
  * @param limit
  * @returns
  */
-export async function query_user_qa_record(page, limit, search_text***REMOVED*** {
+export async function query_user_qa_record(page, limit, search_text,chat_id***REMOVED*** {
   const userStore = useUserStore(***REMOVED***
   const token = userStore.getUserToken(***REMOVED***
   const url = new URL(`${location.origin***REMOVED***/sanic/user/query_user_record`***REMOVED***
@@ -82,6 +83,7 @@ export async function query_user_qa_record(page, limit, search_text***REMOVED***
       page,
       limit,
       search_text,
+      chat_id
     ***REMOVED******REMOVED***,
   ***REMOVED******REMOVED***
   return fetch(req***REMOVED***
@@ -272,6 +274,32 @@ export async function abstract_doc_func(doc_id***REMOVED*** {
     ***REMOVED***,
     body: JSON.stringify({
       doc_id,
+    ***REMOVED******REMOVED***,
+  ***REMOVED******REMOVED***
+  return fetch(req***REMOVED***
+***REMOVED***
+
+/**
+ * 停止对话
+ * @param task_id
+ * @param qa_type
+ * @param rating
+ * @returns
+ */
+export async function stop_chat(task_id, qa_type***REMOVED*** {
+  const userStore = useUserStore(***REMOVED***
+  const token = userStore.getUserToken(***REMOVED***
+  const url = new URL(`${location.origin***REMOVED***/sanic/dify/stop_chat`***REMOVED***
+  const req = new Request(url, {
+    mode: 'cors',
+    method: 'post',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token***REMOVED***`, // 添加 token 到头部
+    ***REMOVED***,
+    body: JSON.stringify({
+      task_id,
+      qa_type,
     ***REMOVED******REMOVED***,
   ***REMOVED******REMOVED***
   return fetch(req***REMOVED***

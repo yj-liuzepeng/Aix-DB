@@ -86,8 +86,9 @@ async def get_user_info(request***REMOVED*** -> dict:
     return user_info
 
 
-async def add_question_record(user_token, conversation_id, message_id, task_id, chat_id, question, t02_answer, t04_answer, qa_type***REMOVED***:
+async def add_question_record(uuid_str, user_token, conversation_id, message_id, task_id, chat_id, question, t02_answer, t04_answer, qa_type***REMOVED***:
     """
+    @:param uuid_str: 唯一ID
     @param user_token: 用户token
     @param conversation_id: dify会话ID
     @param message_id: 消息ID
@@ -120,6 +121,7 @@ async def add_question_record(user_token, conversation_id, message_id, task_id, 
             mysql_client.update(sql***REMOVED***
         else:
             insert_params = [
+                uuid_str,
                 user_id,
                 conversation_id,
                 message_id,
@@ -131,8 +133,8 @@ async def add_question_record(user_token, conversation_id, message_id, task_id, 
                 file_key,
         ***REMOVED***
             sql = (
-                f" insert into t_user_qa_record(user_id,conversation_id, message_id, task_id,chat_id,question,to2_answer,qa_type,file_key***REMOVED*** "
-                f"values (%s,%s,%s,%s,%s,%s,%s,%s,%s***REMOVED***"
+                f" insert into t_user_qa_record(uuid,user_id,conversation_id, message_id, task_id,chat_id,question,to2_answer,qa_type,file_key***REMOVED*** "
+                f"values (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s***REMOVED***"
             ***REMOVED***
             mysql_client.insert(sql=sql, params=insert_params***REMOVED***
 
@@ -166,15 +168,19 @@ async def delete_user_record(user_id, record_ids***REMOVED***:
     mysql_client.update_params(sql=sql, params=params***REMOVED***
 
 
-async def query_user_record(user_id, page, limit, search_text***REMOVED***:
+async def query_user_record(user_id, page, limit, search_text, chat_id***REMOVED***:
     """
     根据用户id查询用户问答记录
     :param page
     :param limit
     :param user_id
+    :param search_text
+    :param chat_id
     :return:
     """
     conditions = []
+    if chat_id:
+        conditions.append(f"chat_id = '{chat_id***REMOVED***'"***REMOVED***
     if search_text:
         conditions.append(f"question LIKE '%{search_text***REMOVED***%'"***REMOVED***
     elif user_id:
@@ -203,7 +209,7 @@ def query_user_qa_record(chat_id***REMOVED***:
     :param chat_id:
     :return:
     """
-    sql = f"select * from t_user_qa_record where chat_id='{chat_id***REMOVED***'"
+    sql = f"select * from t_user_qa_record where chat_id='{chat_id***REMOVED***' order by id desc limit 1"
     return mysql_client.query_mysql_dict(sql***REMOVED***
 
 

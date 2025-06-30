@@ -55,6 +55,8 @@ class DiFyRequest:
             # str(uuid.uuid4(***REMOVED******REMOVED***
             chat_id = req_obj.get("chat_id"***REMOVED***
             qa_type = req_obj.get("qa_type"***REMOVED***
+            # 自定义id
+            uuid_str = req_obj.get("uuid"***REMOVED***
 
             #  使用正则表达式移除所有空白字符（包括空格、制表符、换行符等）
             query = req_obj.get("query"***REMOVED***
@@ -146,7 +148,7 @@ class DiFyRequest:
                                         if data_type == DataTypeEnum.ANSWER.value[0]:
                                             await self.send_message(
                                                 res,
-                                              ***REMOVED***"data": {"messageType": "continue", "content": answer***REMOVED***, "dataType": data_type***REMOVED***,
+                                              ***REMOVED***"data": {"messageType": "continue", "content": answer***REMOVED***, "dataType": data_type, "task_id": task_id***REMOVED***,
                                             ***REMOVED***
 
                                             t02_answer_data.append(answer***REMOVED***
@@ -178,9 +180,11 @@ class DiFyRequest:
                                     ***REMOVED***
 
                                     if t02_message_json:
-                                        await self._save_message(t02_message_json, qa_context, conversation_id, message_id, task_id, qa_type***REMOVED***
+                                        await self._save_message(
+                                            t02_message_json, qa_context, conversation_id, message_id, task_id, qa_type, uuid_str
+                                        ***REMOVED***
                                     if t04_answer_data:
-                                        await self._save_message(t04_answer_data, qa_context, conversation_id, message_id, task_id, qa_type***REMOVED***
+                                        await self._save_message(t04_answer_data, qa_context, conversation_id, message_id, task_id, qa_type, uuid_str***REMOVED***
 
                                     t02_answer_data = []
                                     t04_answer_data = {***REMOVED***
@@ -193,7 +197,7 @@ class DiFyRequest:
             await self.res_end(res***REMOVED***
 
     @staticmethod
-    async def _save_message(message, qa_context, conversation_id, message_id, task_id, qa_type***REMOVED***:
+    async def _save_message(message, qa_context, conversation_id, message_id, task_id, qa_type, uuid_str***REMOVED***:
         """
             保存消息记录并发送SSE数据
         :param message:
@@ -207,11 +211,11 @@ class DiFyRequest:
         # 保存用户问答记录 1.保存用户问题 2.保存用户答案 t02 和 t04
         if "content" in message["data"]:
             await add_question_record(
-                qa_context.token, conversation_id, message_id, task_id, qa_context.chat_id, qa_context.question, message, "", qa_type
+                uuid_str, qa_context.token, conversation_id, message_id, task_id, qa_context.chat_id, qa_context.question, message, "", qa_type
             ***REMOVED***
         elif message["dataType"] == DataTypeEnum.BUS_DATA.value[0]:
             await add_question_record(
-                qa_context.token, conversation_id, message_id, task_id, qa_context.chat_id, qa_context.question, "", message, qa_type
+                uuid_str, qa_context.token, conversation_id, message_id, task_id, qa_context.chat_id, qa_context.question, "", message, qa_type
             ***REMOVED***
 
     @staticmethod
@@ -317,6 +321,7 @@ async def query_dify_suggested(chat_id***REMOVED*** -> dict:
     # 查询对话记录
     qa_record = query_user_qa_record(chat_id***REMOVED***
     url = DiFyRestApi.replace_path_params(DiFyRestApi.DIFY_REST_SUGGESTED, {"message_id": qa_record[0]["message_id"]***REMOVED******REMOVED***
+    logger.info(f"query dify suggested url: {url***REMOVED***"***REMOVED***
     api_key = os.getenv("DIFY_DATABASE_QA_API_KEY"***REMOVED***
     headers = {"Authorization": f"Bearer {api_key***REMOVED***", "Content-Type": "application/json"***REMOVED***
 
@@ -328,4 +333,40 @@ async def query_dify_suggested(chat_id***REMOVED*** -> dict:
         return response.json(***REMOVED***
     else:
         logger.error(f"Failed to send feedback. Status code: {response.status_code***REMOVED***,Response body: {response.text***REMOVED***"***REMOVED***
+        raise
+
+
+async def stop_dify_chat(task_id, qa_type***REMOVED*** -> dict:
+    """
+    停止dify对话流输出
+
+    :param task_id: 任务id。
+    :param qa_type: 问答类型
+    :return: 返回服务器响应。
+    """
+    # 查询对话记录
+    url = DiFyRestApi.replace_path_params(DiFyRestApi.DIFY_REST_STOP, {"task_id": task_id***REMOVED******REMOVED***
+
+    api_key = os.getenv("DIFY_DATABASE_QA_API_KEY"***REMOVED***
+    # 行业报告走的是 报告问答的key
+    if DiFyAppEnum.FILEDATA_QA.value[0] == qa_type:
+        api_key = os.getenv("DIFY_ENTERPRISE_REPORT_API_KEY"***REMOVED***
+
+    headers = {"Authorization": f"Bearer {api_key***REMOVED***", "Content-Type": "application/json"***REMOVED***
+    body = {"user": "abc-123"***REMOVED***
+
+    logger.info(url***REMOVED***
+
+    """
+    data：若传入字典或元组列表，requests 库会把数据编码为表单数据格式（key1=value1&key2=value2）；若传入字节或类文件对象，则直接发送。
+    json：requests 库会自动把传入的 Python 对象序列化为 JSON 字符串，然后发送。
+    """
+    response = requests.post(url, json=body, headers=headers***REMOVED***
+
+    # 检查请求是否成功
+    if response.status_code == 200:
+        logger.info("Stop chat successfully sent."***REMOVED***
+        return response.json(***REMOVED***
+    else:
+        logger.error(f"Failed to stop chat. Status code: {response.status_code***REMOVED***,Response body: {response.text***REMOVED***"***REMOVED***
         raise
