@@ -6,7 +6,7 @@ WORKDIR /sanic-web
 ENV PIP_INDEX_URL="https://pypi.tuna.tsinghua.edu.cn/simple" \
     PIP_EXTRA_INDEX_URL="https://pypi.doubanio.com/simple" \
     UV_INDEX_URL="https://pypi.tuna.tsinghua.edu.cn/simple" \
-    PATH="/root/.local/bin:${PATH***REMOVED***"
+    PATH="/root/.local/bin:${PATH}"
 
 # 复制项目文件
 COPY . .
@@ -32,7 +32,7 @@ WORKDIR /sanic-web
 COPY --from=builder /sanic-web /sanic-web
 
 # 设置环境变量
-ENV PATH="/sanic-web/.venv/bin:${PATH***REMOVED***"
+ENV PATH="/sanic-web/.venv/bin:${PATH}"
 
 
 # 暴露端口
