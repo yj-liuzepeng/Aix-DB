@@ -7,30 +7,46 @@ from typing import List
 
 import jwt
 import requests
+from sqlalchemy.orm import Session
 
 from common.exception import MyException
 from common.mysql_util import MysqlUtil
 from constants.code_enum import SysCodeEnum, DiFyAppEnum, DataTypeEnum
 from constants.dify_rest_api import DiFyRestApi
+from model.db_connection_pool import get_db_pool
+from model.db_models import TUserQaRecord, TUser
+from model.serializers import model_to_dict
 
 logger = logging.getLogger(__name__)
 
 mysql_client = MysqlUtil()
+pool = get_db_pool()
 
 
 async def authenticate_user(username, password):
     """验证用户凭据并返回用户信息或 None"""
-    sql = f"""select * from t_user where userName='{username}' and password='{password}'"""
-    report_dict = MysqlUtil().query_mysql_dict(sql)
-    if len(report_dict) > 0:
-        return report_dict[0]
-    else:
-        return False
+    with pool.get_session() as session:
+        session: Session = session
+        user_dict = model_to_dict(
+            session.query(TUser).filter(TUser.userName == username).filter(TUser.password == password).first()
+        )
+        if user_dict:
+            return user_dict
+    # sql = f"""select * from t_user where userName='{username}' and password='{password}'"""
+    # report_dict = MysqlUtil().query_mysql_dict(sql)
+    # if len(report_dict) > 0:
+    #     return report_dict[0]
+    # else:
+    #     return False
 
 
 async def generate_jwt_token(user_id, username):
     """生成 JWT token"""
-    payload = {"id": str(user_id), "username": username, "exp": datetime.utcnow() + timedelta(hours=24)}  # Token 过期时间
+    payload = {
+        "id": str(user_id),
+        "username": username,
+        "exp": datetime.utcnow() + timedelta(hours=24),
+    }  # Token 过期时间
     token = jwt.encode(payload, os.getenv("JWT_SECRET_KEY"), algorithm="HS256")
     return token
 
@@ -249,8 +265,13 @@ def query_user_qa_record(chat_id):
     :param chat_id:
     :return:
     """
-    sql = f"select * from t_user_qa_record where chat_id='{chat_id}' order by id desc limit 1"
-    return mysql_client.query_mysql_dict(sql)
+    with pool.get_session() as session:
+        records = (
+            session.query(TUserQaRecord).filter(TUserQaRecord.chat_id == chat_id).order_by(TUserQaRecord.id.desc())
+        )
+        return model_to_dict(records)
+    # sql = f"select * from t_user_qa_record where chat_id='{chat_id}' order by id desc limit 1"
+    # return mysql_client.query_mysql_dict(sql)
 
 
 async def send_dify_feedback(chat_id, rating):

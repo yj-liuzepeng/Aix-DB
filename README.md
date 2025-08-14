@@ -109,6 +109,13 @@ https://github.com/user-attachments/assets/923758a3-4879-4836-852b-691413da372e
 ```bash
 git clone https://github.com/apconw/sanic-web.git
 cd docker
+
+# 创建volume目录
+mkdir -p ./volume/mcp-data
+
+# 创建一个空的或默认的 mcp_settings.json 文件
+touch ./volume/mcp-data/mcp_settings.json
+
 docker compose up -d mcphub
 ```
 
