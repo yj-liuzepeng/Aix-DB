@@ -1,17 +1,36 @@
-# Welcome to MkDocs
+# 欢迎使用
+ 
+## 什么是大模型数据助手?
 
-For full documentation visit [mkdocs.org](https://www.mkdocs.org).
+一个轻量级、支持全链路且易于二次开发的大模型应用项目 
 
-## Commands
+**已集成MCP多智能体架构**
 
-* `mkdocs new [dir-name]` - Create a new project.
-* `mkdocs serve` - Start the live-reloading docs server.
-* `mkdocs build` - Build the documentation site.
-* `mkdocs -h` - Print help message and exit.
+基于 **Dify 、LangChain/LangGraph、Lamaindex、MCP、Ollama&Vllm、Sanic 和 Text2SQL** 📊 等技术构建的一站式大模型应用开发项目，采用 
+**Vue3、TypeScript** 和 
+**Vite 5** 
+打造现代UI。它支持通过 **ECharts** 📈 / **AntV**
+实现基于大模型的数据图形化问答，具备处理 **CSV** 文件 📂 表格问答的能力。同时，能方便对接第三方开源 **RAG** 系统 检索系统 🌐等，以支持广泛的通用知识问答。
 
-## Project layout
+作为轻量级的大模型应用开发项目，**Sanic-Web** 🛠️ 支持快速迭代与扩展，助力大模型项目快速落地。🚀
 
-    mkdocs.yml    # The configuration file.
-    docs/
-        index.md  # The documentation homepage.
-        ...       # Other markdown pages, images and other files.
+## 整体架构
+- **多智能体**: 支持多模型、多智能体+MCP协同任务
+- **大模型交互**: 全面支持主流大模型交互框架，如 Dify 与 LangChain
+- **核心技术栈**：Dify + Ollama + RAG + (Qwen3/DeepSeek) + Text2SQL + MCP
+- **UI 框架**：Vue 3 + TypeScript + Vite 5
+- **数据问答**：集成 ECharts大模型实现Text2SQL轻量级的图形化数据问答展示
+- **表格问答**：支持 CSV格式文件的上传与基于大模型总结预处理和Text2SQL的表格数据问答
+- **通用问答**：支持通用数据形式问答基于对接三方RAG系统+公网检索模式
+- **应用架构**：作为一个轻量级全链路一站式大模型应用开发框架方便扩展落地
+- **灵活部署**：支持大模型应用开发各依赖组件docker-compose一键拉起快速部署零配置
+![image](images/app-01.png)
+
+## 下一步
+- [环境配置](environment.md) - 配置DIFY环境/MCP环境
+- [快速体验](quick-start.md) -  容器启动快速体验
+- [本地开发](local-development.md) - 本地二次开发 
+- [常见问题](faq.md) - 整理一些常见问题
+
+---
+**准备好开始了吗？** 让我们从 [环境配置](environment.md) 开始吧！
