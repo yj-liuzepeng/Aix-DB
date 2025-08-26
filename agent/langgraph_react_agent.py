@@ -1,4 +1,6 @@
+import asyncio
 import json
+import logging
 import os
 import traceback
 from typing import Optional
@@ -9,10 +11,11 @@ from langchain_mcp_adapters.client import MultiServerMCPClient
 from langchain_openai import ChatOpenAI
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.prebuilt import create_react_agent
-from langchain.chat_models import init_chat_model
 
-from constants.code_enum import DataTypeEnum
+from constants.code_enum import DataTypeEnum, DiFyAppEnum
 from services.user_service import add_user_record
+
+logger = logging.getLogger(__name__)
 
 
 class LangGraphReactAgent:
@@ -22,40 +25,40 @@ class LangGraphReactAgent:
 
     def __init__(self):
         # 校验并获取环境变量
-        required_env_vars = ["MODEL_NAME", "MODEL_TEMPERATURE", "MODEL_BASE_URL", "MODEL_API_KEY", "MCP_HUB_URL"]
+        required_env_vars = [
+            "MODEL_NAME",
+            "MODEL_TEMPERATURE",
+            "MODEL_BASE_URL",
+            "MODEL_API_KEY",
+            "MCP_HUB_COMMON_QA_GROUP_URL",
+        ]
         for var in required_env_vars:
             if not os.getenv(var):
                 raise ValueError(f"Missing required environment variable: {var}")
 
-        # self.llm = ChatOpenAI(
-        #     model=os.getenv("MODEL_NAME", "qwen-plus"),
-        #     temperature=float(os.getenv("MODEL_TEMPERATURE", 0.75)),
-        #     base_url=os.getenv("MODEL_BASE_URL", "https://dashscope.aliyuncs.com/compatible-mode/v1"),
-        #     api_key=os.getenv("MODEL_API_KEY"),
-        #     # max_tokens=int(os.getenv("MAX_TOKENS", 20000)),
-        #     top_p=float(os.getenv("TOP_P", 0.8)),
-        #     frequency_penalty=float(os.getenv("FREQUENCY_PENALTY", 0.0)),
-        #     presence_penalty=float(os.getenv("PRESENCE_PENALTY", 0.0)),
-        #     timeout=float(os.getenv("REQUEST_TIMEOUT", 30.0)),
-        #     max_retries=int(os.getenv("MAX_RETRIES", 3)),
-        #     streaming=os.getenv("STREAMING", "True").lower() == "true",
-        #     # 将额外参数通过 extra_body 传递
-        #     extra_body={},
-        # )
-        self.llm = init_chat_model(
-            model=os.getenv("MODEL_NAME"),
+        self.llm = ChatOpenAI(
+            model=os.getenv("MODEL_NAME", "qwen-plus"),
             temperature=float(os.getenv("MODEL_TEMPERATURE", 0.75)),
             base_url=os.getenv("MODEL_BASE_URL", "https://dashscope.aliyuncs.com/compatible-mode/v1"),
             api_key=os.getenv("MODEL_API_KEY"),
+            # max_tokens=int(os.getenv("MAX_TOKENS", 20000)),
+            top_p=float(os.getenv("TOP_P", 0.8)),
+            frequency_penalty=float(os.getenv("FREQUENCY_PENALTY", 0.0)),
+            presence_penalty=float(os.getenv("PRESENCE_PENALTY", 0.0)),
+            timeout=float(os.getenv("REQUEST_TIMEOUT", 30.0)),
+            max_retries=int(os.getenv("MAX_RETRIES", 3)),
+            streaming=os.getenv("STREAMING", "True").lower() == "true",
+            # 将额外参数通过 extra_body 传递
+            extra_body={},
         )
 
         # 使用 os.path 构建路径
         # current_dir = os.path.dirname(os.path.abspath(__file__))
-        # mcp_tool_path = os.path.join(current_dir, "query_db_tool.py")
+        # mcp_tool_path = os.path.join(current_dir, "mcp", "query_db_tool.py")
         self.client = MultiServerMCPClient(
             {
                 "mcp-hub": {
-                    "url": os.getenv("MCP_HUB_URL"),
+                    "url": os.getenv("MCP_HUB_COMMON_QA_GROUP_URL"),
                     "transport": "streamable_http",
                 },
                 # "query_qa_record": {
@@ -147,9 +150,11 @@ class LangGraphReactAgent:
                 config=config,
                 stream_mode="messages",
             ):
+                # print(message_chunk)
                 # 工具输出
                 if metadata["langgraph_node"] == "tools":
                     tool_name = message_chunk.name or "未知工具"
+                    # logger.info(f"工具调用结果:{message_chunk.content}")
                     tool_use = "> 调用工具:" + tool_name + "\n\n"
                     await response.write(self._create_response(tool_use))
                     t02_answer_data.append(tool_use)
@@ -162,11 +167,17 @@ class LangGraphReactAgent:
                     content = message_chunk.content
                     t02_answer_data.append(content)
                     await response.write(self._create_response(content))
+                    # 确保实时输出
+                    if hasattr(response, "flush"):
+                        await response.flush()
+                    await asyncio.sleep(0)
 
             await add_user_record(
-                uuid_str, session_id, query, t02_answer_data, DataTypeEnum.ANSWER.value[0], user_token
+                uuid_str, session_id, query, t02_answer_data, {}, DiFyAppEnum.COMMON_QA.value[0], user_token
             )
         except Exception as e:
             print(f"[ERROR] Agent运行异常: {e}")
             traceback.print_exception(e)
-            await response.write(self._create_response("[ERROR] 智能体运行异常", "error", DataTypeEnum.ANSWER.value[0]))
+            await response.write(
+                self._create_response("[ERROR] 智能体运行异常:", "error", DataTypeEnum.ANSWER.value[0])
+            )

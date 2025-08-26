@@ -3,7 +3,7 @@ import logging
 import os
 import traceback
 from datetime import datetime, timedelta
-from typing import List
+from typing import List, Any
 
 import jwt
 import requests
@@ -20,24 +20,25 @@ from model.serializers import model_to_dict
 logger = logging.getLogger(__name__)
 
 mysql_client = MysqlUtil()
-# pool = get_db_pool()
+pool = get_db_pool()
 
 
 async def authenticate_user(username, password):
     """验证用户凭据并返回用户信息或 None"""
-    # with pool.get_session() as session:
-    #     session: Session = session
-    #     user_dict = model_to_dict(
-    #         session.query(TUser).filter(TUser.userName == username).filter(TUser.password == password).first()
-    #     )
-    #     if user_dict:
-    #         return user_dict
-    sql = f"""select * from t_user where userName='{username}' and password='{password}'"""
-    report_dict = MysqlUtil().query_mysql_dict(sql)
-    if len(report_dict) > 0:
-        return report_dict[0]
-    else:
+    with pool.get_session() as session:
+        session: Session = session
+        user_dict = model_to_dict(
+            session.query(TUser).filter(TUser.userName == username).filter(TUser.password == password).first()
+        )
+        if user_dict:
+            return user_dict
         return False
+    # sql = f"""select * from t_user where userName='{username}' and password='{password}'"""
+    # report_dict = MysqlUtil().query_mysql_dict(sql)
+    # if len(report_dict) > 0:
+    #     return report_dict[0]
+    # else:
+    #     return False
 
 
 async def generate_jwt_token(user_id, username):
@@ -163,7 +164,13 @@ async def add_question_record(
 
 
 async def add_user_record(
-    uuid_str: str, chat_id: int, question: str, to2_answer: List[str], qa_type: str, user_token: str
+    uuid_str: str,
+    chat_id: int,
+    question: str,
+    to2_answer: List[str],
+    to4_answer: dict[str, Any],
+    qa_type: str,
+    user_token: str,
 ):
     """
     新增用户问答记录
@@ -175,20 +182,29 @@ async def add_user_record(
         if not user_id:
             raise ValueError("Invalid user token: missing user_id")
 
-        # 2. 组装 answer 数据
+        # 2. 组装 answer 数据 - 修复部分：确保所有元素转换为字符串
+        t02_content = "".join(str(item) for item in (to2_answer or []))
         t02_message_json = {
-            "data": {"messageType": "continue", "content": "".join(to2_answer or [])},
+            "data": {"messageType": "continue", "content": t02_content},
             "dataType": DataTypeEnum.ANSWER.value[0],
         }
-        answer_str = json.dumps(t02_message_json, ensure_ascii=False)
+        t02_answer_str = json.dumps(t02_message_json, ensure_ascii=False)
 
         # 3. 插入数据库
         insert_sql = """
             INSERT INTO t_user_qa_record
-            (uuid, user_id, chat_id, question, to2_answer, qa_type)
-            VALUES (%s, %s, %s, %s, %s, %s)
+            (uuid, user_id, chat_id, question, to2_answer,to4_answer, qa_type)
+            VALUES (%s, %s, %s, %s, %s, %s,%s)
         """
-        insert_params = [uuid_str, user_id, chat_id, question, answer_str, DiFyAppEnum.COMMON_QA.value[0]]
+        insert_params = [
+            uuid_str,
+            user_id,
+            chat_id,
+            question,
+            t02_answer_str,
+            json.dumps(to4_answer, ensure_ascii=False),
+            qa_type,
+        ]
 
         # 如果 mysql_client.insert 是异步方法
         mysql_client.insert(sql=insert_sql, params=insert_params)
@@ -214,7 +230,7 @@ async def delete_user_record(user_id, record_ids):
     in_clause = ", ".join(["%s"] * len(record_ids))
     sql = f"""
         DELETE FROM t_user_qa_record
-        WHERE user_id = %s AND id IN ({in_clause})
+        WHERE user_id = %s AND chat_id IN ({in_clause})
     """
 
     # 将 user_id 添加到参数列表的开头
@@ -227,6 +243,7 @@ async def delete_user_record(user_id, record_ids):
 async def query_user_record(user_id, page, limit, search_text, chat_id):
     """
     根据用户id查询用户问答记录
+    如果chat_id不为空，则查询该chat_id的所有记录；否则根据chat_id去重，取id最小的那条
     :param page
     :param limit
     :param user_id
@@ -242,19 +259,54 @@ async def query_user_record(user_id, page, limit, search_text, chat_id):
     elif user_id:
         conditions.append(f"user_id = {user_id}")
 
-    count_sql = "select count(1) as count from t_user_qa_record"
-    if conditions:
-        count_sql += " where " + " and ".join(conditions)
-    total_count = mysql_client.query_mysql_dict(count_sql)[0]["count"]
-    total_pages = (total_count + limit - 1) // limit  # 计算总页数
-
     # 计算偏移量
     offset = (page - 1) * limit
-    records_sql = f"""select * from t_user_qa_record"""
-    if conditions:
-        records_sql += " where " + " and ".join(conditions)
-    records_sql += " order by id desc LIMIT {limit} OFFSET {offset}".format(limit=limit, offset=offset)
-    records = mysql_client.query_mysql_dict(records_sql)
+
+    # 如果chat_id不为空，则不需要去重，直接查询
+    if chat_id:
+        count_sql = "SELECT COUNT(1) as count FROM t_user_qa_record"
+        if conditions:
+            count_sql += " WHERE " + " AND ".join(conditions)
+        total_count_result = mysql_client.query_mysql_dict(count_sql)
+        total_count = total_count_result[0]["count"] if total_count_result else 0
+        total_pages = (total_count + limit - 1) // limit
+
+        records_sql = f"SELECT * FROM t_user_qa_record"
+        if conditions:
+            records_sql += " WHERE " + " AND ".join(conditions)
+        records_sql += f" ORDER BY id ASC LIMIT {limit} OFFSET {offset}"
+        records = mysql_client.query_mysql_dict(records_sql)
+    else:
+        # 如果chat_id为空，则需要去重，根据chat_id取id最小的记录
+        base_condition = ""
+        if conditions:
+            base_condition = " WHERE " + " AND ".join(conditions)
+
+        count_sql = f"""
+            SELECT COUNT(1) as count FROM (
+                SELECT chat_id, MIN(id) as min_id 
+                FROM t_user_qa_record 
+                {base_condition}
+                GROUP BY chat_id
+            ) as distinct_chats
+        """
+        total_count_result = mysql_client.query_mysql_dict(count_sql)
+        total_count = total_count_result[0]["count"] if total_count_result else 0
+        total_pages = (total_count + limit - 1) // limit
+
+        # 查询去重后的记录，根据chat_id分组并取id最小的记录
+        records_sql = f"""
+            SELECT t.* FROM t_user_qa_record t
+            INNER JOIN (
+                SELECT chat_id, MIN(id) as min_id 
+                FROM t_user_qa_record 
+                {base_condition}
+                GROUP BY chat_id
+            ) tm ON t.chat_id = tm.chat_id AND t.id = tm.min_id
+            ORDER BY t.id DESC 
+            LIMIT {limit} OFFSET {offset}
+        """
+        records = mysql_client.query_mysql_dict(records_sql)
 
     return {"records": records, "current_page": page, "total_pages": total_pages, "total_count": total_count}
 
@@ -265,13 +317,17 @@ def query_user_qa_record(chat_id):
     :param chat_id:
     :return:
     """
-    # with pool.get_session() as session:
-    #     records = (
-    #         session.query(TUserQaRecord).filter(TUserQaRecord.chat_id == chat_id).order_by(TUserQaRecord.id.desc())
-    #     )
-    #     return model_to_dict(records)
-    sql = f"select * from t_user_qa_record where chat_id='{chat_id}' order by id desc limit 1"
-    return mysql_client.query_mysql_dict(sql)
+    with pool.get_session() as session:
+        session: Session = session
+        records = (
+            session.query(TUserQaRecord)
+            .filter(TUserQaRecord.chat_id == chat_id)
+            .order_by(TUserQaRecord.id.desc())
+            .all()
+        )
+        return model_to_dict(records)
+    # sql = f"select * from t_user_qa_record where chat_id='{chat_id}' order by id desc limit 1"
+    # return mysql_client.query_mysql_dict(sql)
 
 
 async def send_dify_feedback(chat_id, rating):

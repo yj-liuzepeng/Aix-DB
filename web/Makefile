@@ -2,13 +2,12 @@
 PROJECT_NAME = chat-vue3-mvp
 
 # Docker 镜像标签
-DOCKER_IMAGE = apconw/$(PROJECT_NAME):1.1.5
-
+DOCKER_IMAGE = apconw/$(PROJECT_NAME):1.1.6
 
 # 阿里云镜像仓库地址 (需要根据实际情况修改)
 ALIYUN_REGISTRY = crpi-7xkxsdc0iki61l0q.cn-hangzhou.personal.cr.aliyuncs.com
 ALIYUN_NAMESPACE = apconw
-ALIYUN_IMAGE_NAME = $(ALIYUN_REGISTRY)/$(ALIYUN_NAMESPACE)/$(PROJECT_NAME):1.1.5
+ALIYUN_IMAGE_NAME = $(ALIYUN_REGISTRY)/$(ALIYUN_NAMESPACE)/$(PROJECT_NAME):1.1.6
 
 
 # Docker 容器名称
@@ -34,7 +33,7 @@ docker-build-web-multi: clean build
 
 
 # 构建服务端arm64/amd64架构镜像并推送至阿里云镜像仓库
-docker-build-aliyun-multi:
+docker-build-aliyun-multi: clean build
 	docker buildx build --platform linux/amd64,linux/arm64 --push -t $(ALIYUN_IMAGE_NAME) -f ./docker/Dockerfile .
 
 

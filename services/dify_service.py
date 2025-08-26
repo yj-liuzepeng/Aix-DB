@@ -8,6 +8,7 @@ import aiohttp
 import requests
 
 from agent.langgraph_react_agent import LangGraphReactAgent
+from agent.text2sql.text2_sql_agent import Text2SqlAgent
 from common.exception import MyException
 from constants.code_enum import (
     DiFyAppEnum,
@@ -32,6 +33,7 @@ class QaContext:
 
 
 agent = LangGraphReactAgent()
+sql_agent = Text2SqlAgent()
 
 
 class DiFyRequest:
@@ -79,7 +81,10 @@ class DiFyRequest:
             # 调用智能体
             if qa_type == DiFyAppEnum.COMMON_QA.value[0]:
                 await agent.run_agent(query, res, chat_id, uuid_str, token)
-                return
+                return None
+            elif qa_type == DiFyAppEnum.DATABASE_QA.value[0]:
+                await sql_agent.run_agent(query, res, chat_id, uuid_str, token)
+                return None
 
             # 判断请求类别
             app_key = self._get_authorization_token(qa_type)
@@ -131,6 +136,7 @@ class DiFyRequest:
                                                 await self.send_message(
                                                     res,
                                                     {"data": {"messageType": "begin"}, "dataType": data_type},
+                                                    answer,
                                                 )
                                         elif event_list[1] == "1":
                                             # 输出结束
@@ -139,6 +145,7 @@ class DiFyRequest:
                                                 await self.send_message(
                                                     res,
                                                     {"data": {"messageType": "end"}, "dataType": data_type},
+                                                    answer,
                                                 )
 
                                             # 输出业务数据
@@ -147,6 +154,7 @@ class DiFyRequest:
                                                 await self.send_message(
                                                     res,
                                                     {"data": res_data, "dataType": data_type},
+                                                    answer,
                                                 )
                                                 t04_answer_data = {"data": res_data, "dataType": data_type}
 
@@ -162,9 +170,10 @@ class DiFyRequest:
                                                     "dataType": data_type,
                                                     "task_id": task_id,
                                                 },
+                                                answer,
                                             )
 
-                                            t02_answer_data.append(answer)
+                                            t02_answer_data.append(await self.format_answer(answer))
 
                                         # 这里设置业务数据
                                         if data_type == DataTypeEnum.BUS_DATA.value[0]:
@@ -267,11 +276,82 @@ class DiFyRequest:
             )
 
     @staticmethod
-    async def send_message(response, message):
+    async def format_answer(answer) -> dict:
+        """
+        格式化大模型输出的Token
+        如果是思考型大模型则格式化思考过程消息
+        :param answer:
+        :return:
+        """
+        if answer and ("<think>" in answer):
+            # 尝试提取<think>标签内容
+            think_content = answer.replace("<think>", "").replace("</think>", "")
+            # 构造思考过程的HTML格式
+            think_html = """<details style="color:gray;background-color: #f8f8f8;padding: 2px;border-radius: 
+                6px;margin-top:5px" open>
+                    <summary> Thinking... </summary>"""
+
+            formatted_message = think_html + think_content.replace("\n", "")
+        elif answer and ("</think>" in answer):
+            formatted_message = "</details>\n" + answer.replace("<think>", "").replace("</think>", "")
+        else:
+            formatted_message = answer
+
+        return formatted_message
+
+    async def send_message(self, response, message, answer):
         """
         SSE 格式发送数据，每一行以 data: 开头
-        #"""
-        await response.write("data:" + json.dumps(message, ensure_ascii=False) + "\n\n")
+
+        :param response: HTTP响应对象
+        :param message: 要发送的消息数据
+        :param answer: 原始回答内容
+        """
+        # await response.write("data:" + json.dumps(message, ensure_ascii=False) + "\n\n")
+
+        # 检查是否需要特殊处理 < think > 标签
+        if answer and ("<think>" in answer):
+            try:
+                # 尝试提取<think>标签内容
+                think_content = answer.replace("<think>", "").replace("</think>", "")
+                # 构造思考过程的HTML格式
+                think_html = """<details style="color:gray;background-color: #f8f8f8;padding: 2px;border-radius:
+                6px;margin-top:5px" open>
+                    <summary> Thinking... </summary>"""
+
+                # 组装完整消息
+                formatted_message = {
+                    "data": {
+                        "messageType": "continue",
+                        "content": think_html + think_content.replace("\n", ""),
+                    },
+                    "dataType": "t02",
+                }
+                await response.write("data:" + json.dumps(formatted_message, ensure_ascii=False) + "\n\n")
+            except Exception as e:
+                # 处理异常情况
+                logging.warning(f"处理<think>标签时出错: {e}")
+                await response.write("data:" + json.dumps(message, ensure_ascii=False) + "\n\n")
+        else:
+            # # 只有在 content 存在时才添加 </details>
+            if answer and ("</think>" in answer):
+                think_content = answer.replace("<think>", "").replace("</think>", "")
+                await response.write(
+                    "data:"
+                    + json.dumps(
+                        {
+                            "data": {
+                                "messageType": "continue",
+                                "content": "</details>\n" + think_content,
+                            },
+                            "dataType": "t02",
+                        },
+                        ensure_ascii=False,
+                    )
+                    + "\n\n"
+                )
+            else:
+                await response.write("data:" + json.dumps(message, ensure_ascii=False) + "\n\n")
 
     @staticmethod
     async def res_begin(res, chat_id):

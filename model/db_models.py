@@ -1,8 +1,23 @@
 import datetime
-from dataclasses import dataclass
+import decimal
 from typing import Optional
 
-from sqlalchemy import BigInteger, Column, DateTime, Float, Integer, String, TIMESTAMP, Table, text
+from sqlalchemy import (
+    BigInteger,
+    Column,
+    DECIMAL,
+    Date,
+    DateTime,
+    Enum,
+    Float,
+    Index,
+    Integer,
+    String,
+    TIMESTAMP,
+    Table,
+    Text,
+    text,
+)
 from sqlalchemy.dialects.mysql import LONGTEXT, TEXT, VARCHAR
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -15,7 +30,6 @@ sqlacodegen mysql+pymysql://root:1@127.0.0.1:13006/chat_db --outfile=models.py -
 """
 
 
-@dataclass
 class TAlarmInfo(Base):
     __tablename__ = "t_alarm_info"
     __table_args__ = {"comment": "诈骗数据"}
@@ -40,31 +54,61 @@ class TAlarmInfo(Base):
     registration_time: Mapped[Optional[datetime.datetime]] = mapped_column(DateTime, comment="登记时间")
 
 
-class TDemandDocMeta(Base):
-    __tablename__ = "t_demand_doc_meta"
-    __table_args__ = {"comment": "需求文档元信息"}
+class TCustomers(Base):
+    __tablename__ = "t_customers"
+    __table_args__ = (Index("email", "email", unique=True), {"comment": "客户信息表"})
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    user_id: Mapped[Optional[int]] = mapped_column(Integer, comment="用户id")
-    demand_id: Mapped[Optional[int]] = mapped_column(Integer, comment="项目id")
-    page_title: Mapped[Optional[str]] = mapped_column(VARCHAR(100), comment="文档段落标题名称")
-    page_content: Mapped[Optional[str]] = mapped_column(TEXT, comment="文档段落内容")
-    create_time: Mapped[Optional[datetime.datetime]] = mapped_column(TIMESTAMP)
-    update_time: Mapped[Optional[datetime.datetime]] = mapped_column(TIMESTAMP)
+    customer_id: Mapped[int] = mapped_column(Integer, primary_key=True, comment="客户ID")
+    customer_name: Mapped[str] = mapped_column(String(100), nullable=False, comment="客户姓名")
+    phone: Mapped[Optional[str]] = mapped_column(String(20), comment="联系电话")
+    email: Mapped[Optional[str]] = mapped_column(VARCHAR(100), comment="电子邮箱")
+    address: Mapped[Optional[str]] = mapped_column(Text, comment="地址")
+    city: Mapped[Optional[str]] = mapped_column(String(50), comment="城市")
+    country: Mapped[Optional[str]] = mapped_column(String(50), server_default=text("'中国'"), comment="国家")
+    created_at: Mapped[Optional[datetime.datetime]] = mapped_column(
+        TIMESTAMP, server_default=text("CURRENT_TIMESTAMP"), comment="创建时间"
+    )
+    updated_at: Mapped[Optional[datetime.datetime]] = mapped_column(
+        TIMESTAMP, server_default=text("CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"), comment="更新时间"
+    )
 
 
-class TDemandManager(Base):
-    __tablename__ = "t_demand_manager"
-    __table_args__ = {"comment": "测试助手-需求文档管理"}
+class TOrderDetails(Base):
+    __tablename__ = "t_order_details"
+    __table_args__ = (
+        Index("product_id", "product_id"),
+        Index("uk_order_product", "order_id", "product_id", unique=True),
+        {"comment": "销售订单明细表"},
+    )
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    file_key: Mapped[str] = mapped_column(VARCHAR(100), nullable=False, comment="文件minio key")
-    user_id: Mapped[Optional[int]] = mapped_column(Integer, comment="用户id")
-    doc_name: Mapped[Optional[str]] = mapped_column(VARCHAR(100), comment="项目名称")
-    doc_desc: Mapped[Optional[str]] = mapped_column(VARCHAR(200), comment="项目简介")
-    fun_num: Mapped[Optional[int]] = mapped_column(Integer, server_default=text("'0'"), comment="功能数")
-    create_time: Mapped[Optional[datetime.datetime]] = mapped_column(TIMESTAMP, comment="创建时间")
-    update_time: Mapped[Optional[datetime.datetime]] = mapped_column(TIMESTAMP, comment="更新时间")
+    detail_id: Mapped[int] = mapped_column(Integer, primary_key=True, comment="明细ID")
+    order_id: Mapped[int] = mapped_column(Integer, nullable=False, comment="订单ID")
+    product_id: Mapped[int] = mapped_column(Integer, nullable=False, comment="产品ID")
+    quantity: Mapped[int] = mapped_column(Integer, nullable=False, comment="销售数量")
+    unit_price: Mapped[decimal.Decimal] = mapped_column(DECIMAL(10, 2), nullable=False, comment="销售时的单价")
+    line_total: Mapped[decimal.Decimal] = mapped_column(
+        DECIMAL(12, 2), nullable=False, comment="行小计（quantity * unit_price）"
+    )
+    created_at: Mapped[Optional[datetime.datetime]] = mapped_column(
+        TIMESTAMP, server_default=text("CURRENT_TIMESTAMP"), comment="创建时间"
+    )
+
+
+class TProducts(Base):
+    __tablename__ = "t_products"
+    __table_args__ = {"comment": "产品信息表"}
+
+    product_id: Mapped[int] = mapped_column(Integer, primary_key=True, comment="产品ID")
+    product_name: Mapped[str] = mapped_column(String(100), nullable=False, comment="产品名称")
+    category: Mapped[str] = mapped_column(VARCHAR(50), nullable=False, comment="产品类别")
+    unit_price: Mapped[decimal.Decimal] = mapped_column(DECIMAL(10, 2), nullable=False, comment="单价")
+    stock_quantity: Mapped[Optional[int]] = mapped_column(Integer, server_default=text("'0'"), comment="库存数量")
+    created_at: Mapped[Optional[datetime.datetime]] = mapped_column(
+        TIMESTAMP, server_default=text("CURRENT_TIMESTAMP"), comment="创建时间"
+    )
+    updated_at: Mapped[Optional[datetime.datetime]] = mapped_column(
+        TIMESTAMP, server_default=text("CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"), comment="更新时间"
+    )
 
 
 class TReportInfo(Base):
@@ -75,6 +119,30 @@ class TReportInfo(Base):
     title: Mapped[Optional[str]] = mapped_column(VARCHAR(100), comment="报告名称")
     markdown: Mapped[Optional[str]] = mapped_column(LONGTEXT, comment="报告内容")
     create_time: Mapped[Optional[datetime.datetime]] = mapped_column(DateTime, comment="创建时间")
+
+
+class TSalesOrders(Base):
+    __tablename__ = "t_sales_orders"
+    __table_args__ = (
+        Index("customer_id", "customer_id"),
+        Index("order_number", "order_number", unique=True),
+        {"comment": "销售订单主表"},
+    )
+
+    order_id: Mapped[int] = mapped_column(Integer, primary_key=True, comment="订单ID")
+    order_number: Mapped[str] = mapped_column(VARCHAR(50), nullable=False, comment="订单编号")
+    customer_id: Mapped[int] = mapped_column(Integer, nullable=False, comment="客户ID")
+    order_date: Mapped[datetime.date] = mapped_column(Date, nullable=False, comment="订单日期")
+    total_amount: Mapped[decimal.Decimal] = mapped_column(DECIMAL(12, 2), nullable=False, comment="订单总金额")
+    status: Mapped[Optional[str]] = mapped_column(
+        Enum("Pending", "Shipped", "Delivered", "Cancelled"), server_default=text("'Pending'"), comment="订单状态"
+    )
+    created_at: Mapped[Optional[datetime.datetime]] = mapped_column(
+        TIMESTAMP, server_default=text("CURRENT_TIMESTAMP"), comment="创建时间"
+    )
+    updated_at: Mapped[Optional[datetime.datetime]] = mapped_column(
+        TIMESTAMP, server_default=text("CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"), comment="更新时间"
+    )
 
 
 class TUser(Base):

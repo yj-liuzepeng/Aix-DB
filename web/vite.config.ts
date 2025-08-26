@@ -16,6 +16,7 @@ import raw from 'vite-raw-plugin'
 export default defineConfig(({ mode }) => {
   return {
     base: process.env.VITE_ROUTER_MODE === 'hash' ? '' : '/',
+    assetsInclude: ['**/*.png'],
     server: {
       port: 2048,
       cors: true,
