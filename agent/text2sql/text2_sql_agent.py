@@ -8,7 +8,7 @@ from langgraph.graph.state import CompiledStateGraph
 from agent.text2sql.analysis.graph import create_graph
 from agent.text2sql.state.agent_state import AgentState
 from constants.code_enum import DataTypeEnum, DiFyAppEnum
-from services.user_service import add_user_record
+from services.user_service import add_user_record, decode_jwt_token
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +19,8 @@ class Text2SqlAgent:
     """
 
     def __init__(self):
-        pass
+        # 存储运行中的任务
+        self.running_tasks = {}
 
     async def run_agent(
         self, query: str, response=None, chat_id: str = None, uuid_str: str = None, user_token=None
@@ -42,6 +43,12 @@ class Text2SqlAgent:
             initial_state = AgentState(user_query=query, attempts=0, correct_attempts=0)
             graph: CompiledStateGraph = create_graph()
 
+            # 获取用户信息 标识对话状态
+            user_dict = await decode_jwt_token(user_token)
+            task_id = user_dict["id"]
+            task_context = {"cancelled": False}
+            self.running_tasks[task_id] = task_context
+
             # async for chunk in graph.astream(initial_state, stream_mode="values"):
             #
             #     # if metadata["langgraph_node"] == "tools":
@@ -61,6 +68,17 @@ class Text2SqlAgent:
             #     #     await asyncio.sleep(0)
 
             async for chunk_dict in graph.astream(initial_state, stream_mode="updates"):
+
+                # 检查是否已取消
+                if self.running_tasks[task_id]["cancelled"]:
+                    await self._send_response(response, "</details>\n\n", "continue", DataTypeEnum.ANSWER.value[0])
+                    await response.write(
+                        self._create_response("\n> 这条消息已停止", "info", DataTypeEnum.ANSWER.value[0])
+                    )
+                    # 发送最终停止确认消息
+                    await response.write(self._create_response("", "end", DataTypeEnum.STREAM_END.value[0]))
+                    break
+
                 logger.info(f"Processing chunk: {chunk_dict}")
 
                 langgraph_step, step_value = next(iter(chunk_dict.items()))
@@ -80,11 +98,21 @@ class Text2SqlAgent:
             if current_step is not None and current_step not in ["summarize", "data_render", "data_render_apache"]:
                 await self._close_current_step(response, t02_answer_data)
 
-            # 保存用户记录
-            await add_user_record(
-                uuid_str, chat_id, query, t02_answer_data, t04_answer_data, DiFyAppEnum.DATABASE_QA.value[0], user_token
-            )
+            # 只有在未取消的情况下才保存记录
+            if not self.running_tasks[task_id]["cancelled"]:
+                await add_user_record(
+                    uuid_str,
+                    chat_id,
+                    query,
+                    t02_answer_data,
+                    t04_answer_data,
+                    DiFyAppEnum.DATABASE_QA.value[0],
+                    user_token,
+                )
 
+        except asyncio.CancelledError:
+            await response.write(self._create_response("\n> 这条消息已停止", "info", DataTypeEnum.ANSWER.value[0]))
+            await response.write(self._create_response("", "end", DataTypeEnum.STREAM_END.value[0]))
         except Exception as e:
             logger.error(f"Error in run_agent: {str(e)}", exc_info=True)
             error_msg = f"处理过程中发生错误: {str(e)}"
@@ -204,3 +232,14 @@ class Text2SqlAgent:
             "dataType": data_type,
         }
         return "data:" + json.dumps(res, ensure_ascii=False) + "\n\n"
+
+    async def cancel_task(self, task_id: str) -> bool:
+        """
+        取消指定的任务
+        :param task_id: 任务ID
+        :return: 是否成功取消
+        """
+        if task_id in self.running_tasks:
+            self.running_tasks[task_id]["cancelled"] = True
+            return True
+        return False
