@@ -791,6 +791,7 @@ const backgroundColorVariable = ref('#ffffff')
                 color="#5f5ae9"
                 strong
                 class="create-chat"
+                :disabled="stylizingLoading"
                 @click="newChat"
               >
                 <template #icon>
