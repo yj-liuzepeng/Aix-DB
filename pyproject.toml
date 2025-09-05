@@ -52,6 +52,7 @@ dependencies = [
     "py2neo>=2021.2.4",
     "langchain-chroma>=0.2.5",
     "langchain-tavily>=0.2.11",
+    "pymupdf4llm>=0.0.27",
 ]
 
 [[tool.uv.index]]
