@@ -263,7 +263,7 @@ class DatabaseService:
         logger.info(f"✅ 向量索引已保存至: {INDEX_FILE}")
 
     @staticmethod
-    def _create_embeddings_with_dashscope(self, texts: List[str]) -> np.ndarray:
+    def _create_embeddings_with_dashscope(texts: List[str]) -> np.ndarray:
         """
         使用 DashScope API 生成文本嵌入向量。
 
