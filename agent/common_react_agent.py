@@ -44,7 +44,7 @@ class LangGraphReactAgent:
             temperature=float(os.getenv("MODEL_TEMPERATURE", 0.75)),
             base_url=os.getenv("MODEL_BASE_URL", "https://dashscope.aliyuncs.com/compatible-mode/v1"),
             api_key=os.getenv("MODEL_API_KEY"),
-            # max_tokens=int(os.getenv("MAX_TOKENS", 20000)),
+            max_tokens=int(os.getenv("MAX_TOKENS", 100000)),
             top_p=float(os.getenv("TOP_P", 0.8)),
             frequency_penalty=float(os.getenv("FREQUENCY_PENALTY", 0.0)),
             presence_penalty=float(os.getenv("PRESENCE_PENALTY", 0.0)),

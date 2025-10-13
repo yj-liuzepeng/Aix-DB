@@ -29,7 +29,7 @@ class Text2SqlAgent:
         self, query: str, response=None, chat_id: str = None, uuid_str: str = None, user_token=None
     ) -> None:
         """
-        运行智能体，支持多轮对话记忆
+        运行智能体
         :param query: 用户输入
         :param response: 响应对象
         :param chat_id: 会话ID，用于区分同一轮对话
