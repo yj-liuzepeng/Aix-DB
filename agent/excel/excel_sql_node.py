@@ -78,7 +78,7 @@ def sql_generate_excel(state):
     try:
         response = chain.invoke(
             {
-                "db_schema": state["db_schema"],
+                "db_schema": state["db_info"],
                 "user_query": state["user_query"],
                 "current_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             }

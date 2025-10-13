@@ -53,10 +53,56 @@ def map_pandas_dtype_to_sql(dtype: str) -> str:
 
 def read_excel_columns(state: ExcelAgentState) -> None:
     """
-    读取Excel文件的所有sheet，生成表结构信息
-
-    :param state: ExcelAgentState对象，包含file_list等信息
-    :return: None，直接修改state中的db_schema
+        读取Excel文件的所有sheet，生成表结构信息
+        [{
+        "table_name": "手机销售数据",
+        "columns": {
+          "商品名称": {
+            "comment": "商品名称",
+            "type": "VARCHAR(255)"
+          },
+          "价格": {
+            "comment": "价格",
+            "type": "FLOAT"
+          },
+          "产地": {
+            "comment": "产地",
+            "type": "VARCHAR(255)"
+          },
+          "月份": {
+            "comment": "月份",
+            "type": "DATETIME"
+          }
+        },
+        "foreign_keys": [],
+        "table_comment": "销售数据"
+      },
+      {
+        "table_name": "电脑销售数据",
+        "columns": {
+          "商品名称": {
+            "comment": "商品名称",
+            "type": "VARCHAR(255)"
+          },
+          "价格": {
+            "comment": "价格",
+            "type": "FLOAT"
+          },
+          "产地": {
+            "comment": "产地",
+            "type": "VARCHAR(255)"
+          },
+          "月份": {
+            "comment": "月份",
+            "type": "DATETIME"
+          }
+        },
+        "foreign_keys": [],
+        "table_comment": "销售数据"
+      }
+    ]
+        :param state: ExcelAgentState对象，包含file_list等信息
+        :return: None，直接修改state中的db_schema
     """
     file_list_ = state["file_list"]
     try:
@@ -151,7 +197,8 @@ def read_excel_columns(state: ExcelAgentState) -> None:
 
         # 输出结果
         logger.info(json.dumps(schema_info, ensure_ascii=False, indent=2))
-        state["db_schema"] = schema_info
+        # 目前只处理第一个sheet todo
+        state["db_info"] = schema_info[0]
     except Exception as e:
         traceback.print_exception(e)
         logger.error(f"读取Excel表列信息出错file_key:{file_list_}", exc_info=True)

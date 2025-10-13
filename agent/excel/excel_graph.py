@@ -4,12 +4,12 @@ from langgraph.graph import StateGraph, END
 from langgraph.graph.state import CompiledStateGraph
 
 from agent.excel.excel_agent_state import ExcelAgentState
+from agent.excel.excel_excute_sql import exe_sql_excel_query
 from agent.excel.excel_mapping_node import read_excel_columns
 from agent.excel.excel_sql_node import sql_generate_excel
 from agent.text2sql.analysis.data_render_antv import data_render_ant
 from agent.text2sql.analysis.data_render_apache import data_render_apache
 from agent.text2sql.analysis.llm_summarizer import summarize
-from agent.text2sql.database.db_service import DatabaseService
 
 logger = logging.getLogger(__name__)
 
@@ -32,11 +32,10 @@ def create_excel_graph():
     :return:
     """
     graph = StateGraph(ExcelAgentState)
-    db_service = DatabaseService()
 
     graph.add_node("excel_parsing", read_excel_columns)
     graph.add_node("sql_generator", sql_generate_excel)
-    graph.add_node("sql_executor", db_service.execute_sql)
+    graph.add_node("sql_executor", exe_sql_excel_query)
     graph.add_node("data_render", data_render_ant)
     graph.add_node("data_render_apache", data_render_apache)
     graph.add_node("summarize", summarize)
