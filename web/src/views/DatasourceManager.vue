@@ -2,8 +2,8 @@
 import { useDialog } from 'naive-ui'
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import DatasourceForm from '@/components/Datasource/DatasourceForm.vue'
 import { delete_datasource, fetch_datasource_detail, fetch_datasource_list } from '@/api/datasource'
+import DatasourceForm from '@/components/Datasource/DatasourceForm.vue'
 
 const dialog = useDialog()
 const router = useRouter()
@@ -117,6 +117,13 @@ const handleViewTables = (item: any) => {
   router.push(`/datasource/table/${item.id}/${encodeURIComponent(item.name)}`)
 }
 
+// 获取图标 (这里假设只有 mysql 图标，实际应根据 type 返回不同图标)
+const getIcon = (type: string) => {
+  // 可以根据 type 返回不同的图片路径
+  // 目前代码中只看到了 mysql-icon.svg
+  return new URL('@/assets/svg/mysql-icon.svg', import.meta.url).href
+}
+
 onMounted(() => {
   fetchDatasourceList()
 })
@@ -125,18 +132,39 @@ onMounted(() => {
 <template>
   <div class="datasource-manager">
     <div class="header">
-      <h2>数据源管理</h2>
+      <div class="title-section">
+        <h2>数据源管理</h2>
+        <!-- <p class="subtitle">
+          管理您的数据库连接，支持 MySQL, PostgreSQL, Oracle 等多种数据源
+        </p> -->
+      </div>
       <div class="actions">
         <n-input
           v-model:value="keywords"
-          placeholder="搜索数据源"
+          placeholder="搜索数据源..."
           clearable
-          style="width: 240px; margin-right: 12px"
-        />
+          class="search-input"
+        >
+          <template #prefix>
+            <div class="i-carbon-search text-gray-400"></div>
+          </template>
+        </n-input>
+        <n-button
+          secondary
+          @click="fetchDatasourceList"
+        >
+          <template #icon>
+            <div class="i-carbon-renew"></div>
+          </template>
+          刷新
+        </n-button>
         <n-button
           type="primary"
           @click="handleAdd"
         >
+          <template #icon>
+            <div class="i-carbon-add"></div>
+          </template>
           新建数据源
         </n-button>
       </div>
@@ -148,9 +176,9 @@ onMounted(() => {
         class="content"
       >
         <n-grid
-          :cols="4"
-          :x-gap="16"
-          :y-gap="16"
+          :x-gap="24"
+          :y-gap="24"
+          cols="1 600:2 900:3 1200:4"
         >
           <n-grid-item
             v-for="item in filteredList"
@@ -159,56 +187,71 @@ onMounted(() => {
             <n-card
               hoverable
               class="datasource-card"
+              :bordered="false"
+              content-style="padding: 0;"
               @click="handleViewTables(item)"
             >
-              <template #header>
-                <div class="card-header">
-                  <img
-                    src="@/assets/svg/mysql-icon.svg"
-                    alt="MySQL"
-                    class="datasource-icon"
-                  >
-                  <span>{{ item.name }}</span>
-                </div>
-              </template>
-              <div class="card-content">
-                <p class="description">
-                  {{ item.description || '暂无描述' }}
-                </p>
-                <div class="meta">
-                  <span class="type">{{ item.type_name || item.type }}</span>
-                  <span
-                    class="status"
-                    :class="item.status === 'Success' ? 'success' : 'failed'"
-                  >
-                    {{ item.status === 'Success' ? '正常' : '异常' }}
-                  </span>
-                </div>
-                <div
-                  v-if="item.num"
-                  class="table-count"
-                >
-                  表数量: {{ item.num }}
+              <div class="card-body">
+                <div class="card-top">
+                  <div class="icon-wrapper">
+                    <img
+                      :src="getIcon(item.type)"
+                      :alt="item.type"
+                      class="datasource-icon"
+                    >
+                  </div>
+                  <div class="info">
+                    <h3 class="name">
+                      {{ item.name }}
+                    </h3>
+                    <span class="type">{{ item.type_name || item.type }}</span>
+                  </div>
+                  <div class="status-badge">
+                    <span
+                      class="dot"
+                      :class="item.status === 'Success' ? 'success' : 'failed'"
+                    ></span>
+                  </div>
                 </div>
 
-                <!-- 操作按钮：放置于右下角并默认隐藏 -->
-                <div class="actions-overlay">
-                  <div class="action-buttons">
-                    <n-button
-                      text
-                      type="default"
-                      @click.stop="handleEdit(item)"
-                    >
-                      编辑
-                    </n-button>
-                    <n-button
-                      text
-                      type="error"
-                      @click.stop="handleDelete(item)"
-                    >
-                      删除
-                    </n-button>
+                <div class="card-desc">
+                  {{ item.description || '暂无描述' }}
+                </div>
+
+                <div class="card-meta">
+                  <div class="meta-item">
+                    <span class="label">主机</span>
+                    <span class="value">{{ item.host || '-' }}</span>
                   </div>
+                  <div class="meta-item">
+                    <span class="label">数据库</span>
+                    <span class="value">{{ item.database || '-' }}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="card-actions">
+                <div class="stats">
+                  <span class="count">{{ item.num || 0 }}</span>
+                  <span class="label">表</span>
+                </div>
+                <div class="buttons">
+                  <n-button
+                    text
+                    size="small"
+                    @click.stop="handleEdit(item)"
+                  >
+                    编辑
+                  </n-button>
+                  <n-divider vertical />
+                  <n-button
+                    text
+                    type="error"
+                    size="small"
+                    @click.stop="handleDelete(item)"
+                  >
+                    删除
+                  </n-button>
                 </div>
               </div>
             </n-card>
@@ -219,7 +262,19 @@ onMounted(() => {
         v-else
         class="empty-container"
       >
-        <n-empty description="暂无数据源" />
+        <n-empty
+          description="暂无数据源"
+          size="large"
+        >
+          <template #extra>
+            <n-button
+              type="primary"
+              @click="handleAdd"
+            >
+              新建数据源
+            </n-button>
+          </template>
+        </n-empty>
       </div>
     </n-spin>
 
@@ -234,33 +289,49 @@ onMounted(() => {
 
 <style lang="scss" scoped>
 .datasource-manager {
-  padding: 24px;
+  padding: 24px 32px;
   height: 100%;
   display: flex;
   flex-direction: column;
-  background-color: #fff;
+  background-color: #f9fafb;
 
   .header {
     display: flex;
     justify-content: space-between;
-    align-items: center;
-    margin-bottom: 24px;
+    align-items: flex-end;
+    margin-bottom: 32px;
 
-    h2 {
-      margin: 0;
-      font-size: 20px;
-      font-weight: 500;
+    .title-section {
+
+      h2 {
+        margin: 0 0 8px;
+        font-size: 24px;
+        font-weight: 600;
+        color: #1f2937;
+      }
+
+      .subtitle {
+        margin: 0;
+        color: #6b7280;
+        font-size: 14px;
+      }
     }
 
     .actions {
       display: flex;
       align-items: center;
+      gap: 12px;
+
+      .search-input {
+        width: 260px;
+      }
     }
   }
 
   .content {
     flex: 1;
     overflow-y: auto;
+    padding-bottom: 24px;
   }
 
   .empty-container {
@@ -268,99 +339,162 @@ onMounted(() => {
     justify-content: center;
     align-items: center;
     min-height: 400px;
+    background: #fff;
+    border-radius: 12px;
+    border: 1px dashed #e5e7eb;
   }
 
   .datasource-card {
     cursor: pointer;
-    background: rgb(240 249 255 / 60%);
-    transition: background 0.3s ease;
+    transition: all 0.3s ease;
+    border: 1px solid #f3f4f6;
+    background: #fff;
+    border-radius: 12px;
+    overflow: hidden;
 
     &:hover {
-      background: rgb(240 249 255 / 90%);
+      transform: translateY(-4px);
+      box-shadow: 0 12px 24px -8px rgb(0 0 0 / 12%);
+      border-color: transparent;
     }
 
-    :deep(.n-card__content) {
-      cursor: pointer;
+    .card-body {
+      padding: 20px;
     }
 
-    .card-header {
+    .card-top {
       display: flex;
-      align-items: center;
-      gap: 8px;
+      align-items: flex-start;
+      gap: 16px;
+      margin-bottom: 16px;
 
-      .datasource-icon {
-        width: 20px;
-        height: 20px;
+      .icon-wrapper {
+        width: 48px;
+        height: 48px;
+        border-radius: 12px;
+        background: #f3f4f6;
+        display: flex;
+        align-items: center;
+        justify-content: center;
         flex-shrink: 0;
+
+        .datasource-icon {
+          width: 28px;
+          height: 28px;
+        }
+      }
+
+      .info {
+        flex: 1;
+        min-width: 0;
+
+        .name {
+          margin: 0 0 4px;
+          font-size: 16px;
+          font-weight: 600;
+          color: #111827;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        .type {
+          font-size: 12px;
+          color: #6b7280;
+          background: #f3f4f6;
+          padding: 2px 8px;
+          border-radius: 999px;
+        }
+      }
+
+      .status-badge {
+
+        .dot {
+          display: block;
+          width: 8px;
+          height: 8px;
+          border-radius: 50%;
+          background: #d1d5db;
+
+          &.success {
+            background: #10b981;
+            box-shadow: 0 0 0 4px rgb(16 185 129 / 10%);
+          }
+
+          &.failed {
+            background: #ef4444;
+            box-shadow: 0 0 0 4px rgb(239 68 68 / 10%);
+          }
+        }
       }
     }
-  }
 
-  .card-content {
-    position: relative;
-    cursor: pointer;
-
-    .description {
-      margin: 8px 0;
-      color: #666;
+    .card-desc {
       font-size: 14px;
+      color: #6b7280;
+      margin-bottom: 16px;
+      line-height: 1.5;
+      height: 42px;
+      overflow: hidden;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
     }
 
-    .meta {
+    .card-meta {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-bottom: 8px;
+
+      .meta-item {
+        display: flex;
+        align-items: center;
+        font-size: 12px;
+        color: #4b5563;
+
+        .label {
+          color: #9ca3af;
+          width: 48px;
+        }
+
+        .value {
+          font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+          background: #f9fafb;
+          padding: 2px 6px;
+          border-radius: 4px;
+        }
+      }
+    }
+
+    .card-actions {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-top: 12px;
+      padding: 12px 20px;
+      background: #f9fafb;
+      border-top: 1px solid #f3f4f6;
 
-      .type {
+      .stats {
         font-size: 12px;
-        color: #999;
-      }
+        color: #6b7280;
 
-      .status {
-        padding: 2px 8px;
-        border-radius: 4px;
-        font-size: 12px;
-
-        &.success {
-          background: #f0f9ff;
-          color: #1890ff;
-        }
-
-        &.failed {
-          background: #fff1f0;
-          color: #ff4d4f;
+        .count {
+          font-weight: 600;
+          color: #111827;
+          margin-right: 2px;
         }
       }
-    }
 
-    .table-count {
-      margin-top: 8px;
-      font-size: 12px;
-      color: #999;
-    }
-
-    /* 右下角浮动操作按钮 */
-
-    .actions-overlay {
-      position: absolute;
-      bottom: 8px;
-      right: 8px;
-      opacity: 0;
-      transition: opacity 0.3s ease-in-out;
-      pointer-events: none; // 默认不响应点击事件
-
-      .action-buttons {
+      .buttons {
         display: flex;
-        gap: 8px;
-      }
-    }
+        align-items: center;
+        opacity: 0.8;
+        transition: opacity 0.2s;
 
-    &:hover {
-
-      .actions-overlay {
-        opacity: 1;
-        pointer-events: all; // 悬停时启用点击
+        &:hover {
+          opacity: 1;
+        }
       }
     }
   }

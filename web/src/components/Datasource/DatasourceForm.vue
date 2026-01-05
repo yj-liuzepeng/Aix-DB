@@ -61,7 +61,7 @@ const rules: FormRules = {
     {
       validator: (rule: any, value: string) => {
         if (!value) {
-          return true // required 规则会处理空值
+          return true
         }
         if (value.length < 1 || value.length > 50) {
           return new Error('名称长度在1-50个字符')
@@ -139,7 +139,6 @@ const initForm = async () => {
     formData.description = props.datasource.description || ''
     formData.type = props.datasource.type || 'mysql'
 
-    // 获取数据源详情（包含解密后的配置）
     try {
       const response = await fetch_datasource_detail(props.datasource.id)
       if (response.ok) {
@@ -192,7 +191,7 @@ const testConnection = async () => {
   await formRef.value.validate((errors) => {
     if (errors) {
       window.$ModalMessage.error('请检查表单信息')
-      return false // 阻止表单提交
+      return false
     }
   })
 
@@ -212,7 +211,6 @@ const testConnection = async () => {
     const result = await response.json()
     if (result.code === 200 && result.data?.connected) {
       window.$ModalMessage.success('连接成功')
-      // 连接成功后获取表列表
       await fetchTableList()
     } else {
       window.$ModalMessage.error(result.data?.error_message || '连接失败')
@@ -368,9 +366,7 @@ const handleSave = async () => {
 
     const result = await response.json()
     if (result.code === 200) {
-      // 优先使用返回的 id（新建场景）
       dsId = result.data?.id || dsId
-      // 将选中表同步到后端表/字段（调用新接口，清理未选表）
       if (dsId) {
         try {
           await sync_datasource_tables(dsId, tables)
@@ -414,12 +410,26 @@ watch(() => props.show, (newVal) => {
     preset="card"
     :title="datasource ? '编辑数据源' : '新建数据源'"
     class="datasource-modal"
-    transform-origin="center"
-    :style="{ width: '800px' }"
-    :content-style="{ maxHeight: '70vh', overflow: 'auto' }"
+    :style="{ width: '700px' }"
     @update:show="(val) => emit('update:show', val)"
     @close="handleClose"
   >
+    <div class="steps-wrapper">
+      <n-steps
+        :current="currentStep"
+        size="small"
+      >
+        <n-step
+          title="连接配置"
+          description="配置数据库连接信息"
+        />
+        <n-step
+          title="选择表"
+          description="选择需要管理的表"
+        />
+      </n-steps>
+    </div>
+
     <n-form
       ref="formRef"
       :model="formData"
@@ -427,147 +437,198 @@ watch(() => props.show, (newVal) => {
       label-placement="left"
       label-width="100px"
       require-mark-placement="right-hanging"
+      class="form-content"
     >
       <!-- 第一步：基本信息 -->
-      <div v-if="currentStep === 1">
-        <n-form-item
-          label="数据源名称"
-          path="name"
+      <div
+        v-show="currentStep === 1"
+        class="step-content"
+      >
+        <n-grid
+          :x-gap="24"
+          :cols="1"
         >
-          <n-input
-            v-model:value="formData.name"
-            placeholder="请输入数据源名称"
-            clearable
-          />
-        </n-form-item>
+          <n-grid-item>
+            <n-form-item
+              label="数据源名称"
+              path="name"
+            >
+              <n-input
+                v-model:value="formData.name"
+                placeholder="例如：主业务库"
+                clearable
+              />
+            </n-form-item>
+          </n-grid-item>
+          <n-grid-item>
+            <n-form-item label="描述">
+              <n-input
+                v-model:value="formData.description"
+                type="textarea"
+                placeholder="请输入描述（可选）"
+                :rows="2"
+                clearable
+              />
+            </n-form-item>
+          </n-grid-item>
+          <n-grid-item>
+            <n-form-item
+              label="数据源类型"
+              path="type"
+            >
+              <n-select
+                v-model:value="formData.type"
+                :options="datasourceTypes"
+                placeholder="请选择数据源类型"
+              />
+            </n-form-item>
+          </n-grid-item>
+        </n-grid>
 
-        <n-form-item label="描述">
-          <n-input
-            v-model:value="formData.description"
-            type="textarea"
-            placeholder="请输入描述（可选）"
-            :rows="2"
-            clearable
-          />
-        </n-form-item>
+        <n-divider dashed>
+          连接信息
+        </n-divider>
 
-        <n-form-item
-          label="数据源类型"
-          path="type"
+        <n-grid
+          :x-gap="24"
+          :cols="2"
         >
-          <n-select
-            v-model:value="formData.type"
-            :options="datasourceTypes"
-            placeholder="请选择数据源类型"
-          />
-        </n-form-item>
+          <n-grid-item>
+            <n-form-item
+              label="主机地址"
+              path="host"
+            >
+              <n-input
+                v-model:value="formData.host"
+                placeholder="127.0.0.1"
+                clearable
+              />
+            </n-form-item>
+          </n-grid-item>
+          <n-grid-item>
+            <n-form-item
+              label="端口"
+              path="port"
+            >
+              <n-input-number
+                v-model:value="formData.port"
+                :min="1"
+                :max="65535"
+                placeholder="3306"
+                :show-button="false"
+                style="width: 100%"
+              />
+            </n-form-item>
+          </n-grid-item>
+          <n-grid-item>
+            <n-form-item label="用户名">
+              <n-input
+                v-model:value="formData.username"
+                placeholder="root"
+                clearable
+              />
+            </n-form-item>
+          </n-grid-item>
+          <n-grid-item>
+            <n-form-item label="密码">
+              <n-input
+                v-model:value="formData.password"
+                type="password"
+                placeholder="请输入密码"
+                show-password-on="click"
+                clearable
+              />
+            </n-form-item>
+          </n-grid-item>
+          <n-grid-item>
+            <n-form-item
+              label="数据库名"
+              path="database"
+            >
+              <n-input
+                v-model:value="formData.database"
+                placeholder="请输入数据库名"
+                clearable
+              />
+            </n-form-item>
+          </n-grid-item>
+          <n-grid-item v-if="showSchema">
+            <n-form-item
+              label="Schema"
+              path="dbSchema"
+            >
+              <n-input
+                v-model:value="formData.dbSchema"
+                placeholder="public"
+                clearable
+              />
+            </n-form-item>
+          </n-grid-item>
+        </n-grid>
 
-        <n-form-item
-          label="主机地址"
-          path="host"
-        >
-          <n-input
-            v-model:value="formData.host"
-            placeholder="请输入主机地址"
-            clearable
-          />
-        </n-form-item>
-
-        <n-form-item
-          label="端口"
-          path="port"
-        >
-          <n-input-number
-            v-model:value="formData.port"
-            :min="1"
-            :max="65535"
-            placeholder="请输入端口号"
-            :show-button="false"
-            style="width: 100%"
-          />
-        </n-form-item>
-
-        <n-form-item label="用户名">
-          <n-input
-            v-model:value="formData.username"
-            placeholder="请输入用户名"
-            clearable
-          />
-        </n-form-item>
-
-        <n-form-item label="密码">
-          <n-input
-            v-model:value="formData.password"
-            type="password"
-            placeholder="请输入密码"
-            show-password-on="click"
-            clearable
-          />
-        </n-form-item>
-
-        <n-form-item
-          label="数据库名"
-          path="database"
-        >
-          <n-input
-            v-model:value="formData.database"
-            placeholder="请输入数据库名"
-            clearable
-          />
-        </n-form-item>
-
-        <n-form-item
-          v-if="showSchema"
-          label="Schema"
-          path="dbSchema"
-        >
-          <n-input
-            v-model:value="formData.dbSchema"
-            placeholder="请输入Schema"
-            clearable
-          />
-        </n-form-item>
-
-        <n-form-item
-          v-if="showOracleMode"
-          label="连接模式"
-          path="mode"
-        >
-          <n-radio-group v-model:value="formData.mode">
-            <n-radio value="service_name">
-              Service Name
-            </n-radio>
-            <n-radio value="sid">
-              SID
-            </n-radio>
-          </n-radio-group>
-        </n-form-item>
-
-        <n-form-item label="额外参数">
-          <n-input
-            v-model:value="formData.extraJdbc"
-            placeholder="例如: useSSL=false&serverTimezone=UTC"
-            clearable
-          />
-        </n-form-item>
-
-        <n-form-item label="超时时间（秒）">
-          <n-input-number
-            v-model:value="formData.timeout"
-            :min="1"
-            :max="300"
-            placeholder="默认30秒"
-            style="width: 100%"
-          />
-        </n-form-item>
+        <div v-if="showOracleMode || formData.extraJdbc || formData.timeout !== 30">
+          <n-divider dashed>
+            高级设置
+          </n-divider>
+          <n-grid
+            :x-gap="24"
+            :cols="1"
+          >
+            <n-grid-item v-if="showOracleMode">
+              <n-form-item
+                label="连接模式"
+                path="mode"
+              >
+                <n-radio-group v-model:value="formData.mode">
+                  <n-radio value="service_name">
+                    Service Name
+                  </n-radio>
+                  <n-radio value="sid">
+                    SID
+                  </n-radio>
+                </n-radio-group>
+              </n-form-item>
+            </n-grid-item>
+            <n-grid-item>
+              <n-form-item label="额外参数">
+                <n-input
+                  v-model:value="formData.extraJdbc"
+                  placeholder="例如: useSSL=false&serverTimezone=UTC"
+                  clearable
+                />
+              </n-form-item>
+            </n-grid-item>
+            <n-grid-item>
+              <n-form-item label="超时时间">
+                <n-input-number
+                  v-model:value="formData.timeout"
+                  :min="1"
+                  :max="300"
+                  placeholder="默认30秒"
+                  style="width: 200px"
+                >
+                  <template #suffix>
+                    秒
+                  </template>
+                </n-input-number>
+              </n-form-item>
+            </n-grid-item>
+          </n-grid>
+        </div>
       </div>
 
       <!-- 第二步：选择表 -->
-      <div v-if="currentStep === 2">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px">
-          <n-text>已选择 {{ selectedTables.length }} / {{ tableList.length }} 个表</n-text>
+      <div
+        v-show="currentStep === 2"
+        class="step-content"
+      >
+        <div class="table-selection-header">
+          <n-text>
+            已选择 <span class="highlight">{{ selectedTables.length }}</span> / {{ tableList.length }} 个表
+          </n-text>
           <n-button
             size="small"
+            secondary
             @click="handleSelectAll"
           >
             {{ isAllSelected ? '取消全选' : '全选' }}
@@ -575,105 +636,165 @@ watch(() => props.show, (newVal) => {
         </div>
 
         <n-spin :show="tableListLoading">
-          <div style="max-height: 400px; overflow-y: auto">
+          <div class="table-list-wrapper">
             <n-checkbox-group v-model:value="selectedTables">
-              <n-space
-                vertical
-                :size="8"
+              <n-grid
+                :x-gap="12"
+                :y-gap="12"
+                :cols="2"
               >
-                <n-checkbox
+                <n-grid-item
                   v-for="table in tableList"
                   :key="table.tableName"
-                  :value="table.tableName"
-                  :label="table.tableName"
                 >
-                  <template #label>
-                    <div style="display: flex; align-items: center; gap: 8px">
-                      <span>{{ table.tableName }}</span>
-                      <n-text
-                        v-if="table.tableComment"
-                        depth="3"
-                        style="font-size: 12px"
-                      >
-                        {{ table.tableComment }}
-                      </n-text>
-                    </div>
-                  </template>
-                </n-checkbox>
-              </n-space>
+                  <div class="table-item">
+                    <n-checkbox
+                      :value="table.tableName"
+                      style="width: 100%"
+                    >
+                      <div class="checkbox-content">
+                        <span class="table-name">{{ table.tableName }}</span>
+                        <span
+                          v-if="table.tableComment"
+                          class="table-comment"
+                        >{{ table.tableComment }}</span>
+                      </div>
+                    </n-checkbox>
+                  </div>
+                </n-grid-item>
+              </n-grid>
             </n-checkbox-group>
+            <n-empty
+              v-if="tableList.length === 0"
+              description="未找到数据表"
+            />
           </div>
         </n-spin>
       </div>
     </n-form>
-    <template #action>
+
+    <template #footer>
       <div class="modal-actions">
-        <n-button @click="handleClose">
-          取消
-        </n-button>
+        <div class="left">
+          <n-button
+            v-if="currentStep === 1"
+            secondary
+            :loading="testing"
+            @click="testConnection"
+          >
+            测试连接
+          </n-button>
+        </div>
+        <div class="right">
+          <n-button @click="handleClose">
+            取消
+          </n-button>
 
-        <n-button
-          v-if="currentStep === 2"
-          @click="handlePrev"
-        >
-          上一步
-        </n-button>
+          <n-button
+            v-if="currentStep === 2"
+            @click="handlePrev"
+          >
+            上一步
+          </n-button>
 
-        <n-button
-          v-if="currentStep === 1"
-          :loading="testing"
-          @click="testConnection"
-        >
-          测试连接
-        </n-button>
+          <n-button
+            v-if="currentStep === 1"
+            type="primary"
+            @click="handleNext"
+          >
+            下一步
+          </n-button>
 
-        <n-button
-          v-if="currentStep === 1"
-          type="primary"
-          @click="handleNext"
-        >
-          下一步
-        </n-button>
-
-        <n-button
-          v-if="currentStep === 2"
-          type="primary"
-          :loading="loading"
-          @click="handleSave"
-        >
-          保存
-        </n-button>
+          <n-button
+            v-if="currentStep === 2"
+            type="primary"
+            :loading="loading"
+            @click="handleSave"
+          >
+            保存
+          </n-button>
+        </div>
       </div>
     </template>
   </n-modal>
 </template>
 
 <style lang="scss" scoped>
-:deep(.n-form-item) {
-  margin-bottom: 0;
+.steps-wrapper {
+  margin-bottom: 24px;
+  padding: 0 12px;
 }
 
-// 确保输入框有背景色，防止透明
-
-:deep(.n-input) {
-  background-color: var(--n-color) !important;
+.form-content {
+  padding: 0 12px;
 }
 
-:deep(.n-input-wrapper) {
-  background-color: var(--n-color) !important;
+.step-content {
+  min-height: 300px;
 }
 
-:deep(.n-input__input-el) {
-  background-color: transparent;
+.table-selection-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  padding: 8px 12px;
+  background: #f9fafb;
+  border-radius: 8px;
+
+  .highlight {
+    color: #18a058;
+    font-weight: 600;
+  }
+}
+
+.table-list-wrapper {
+  max-height: 400px;
+  overflow-y: auto;
+  padding: 4px;
+
+  .table-item {
+    padding: 8px;
+    border-radius: 6px;
+    border: 1px solid #eee;
+    transition: all 0.2s;
+
+    &:hover {
+      background: #f9fafb;
+      border-color: #d1d5db;
+    }
+
+    .checkbox-content {
+      display: flex;
+      flex-direction: column;
+      width: 100%;
+      overflow: hidden;
+
+      .table-name {
+        font-weight: 500;
+        color: #374151;
+        margin-bottom: 2px;
+      }
+
+      .table-comment {
+        font-size: 12px;
+        color: #9ca3af;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+    }
+  }
 }
 
 .modal-actions {
   display: flex;
-  justify-content: flex-end;
-  gap: 12px;
+  justify-content: space-between;
   width: 100%;
-  margin-top: 0;
-  border-top: 1px solid var(--n-divider-color);
-  background-color: var(--n-card-color, #fff);
+
+  .right {
+    display: flex;
+    gap: 12px;
+  }
 }
 </style>

@@ -76,6 +76,31 @@ async def get_datasource_list(req: request.Request):
 
             result = []
             for ds in datasources:
+                # 解密配置信息
+                configuration = ds.configuration
+                if configuration:
+                    try:
+                        from common.datasource_util import DatasourceConfigUtil
+                        import json
+
+                        config_dict = DatasourceConfigUtil.decrypt_config(configuration)
+                        configuration = json.dumps(config_dict)
+                    except Exception as e:
+                        logger.error(f"解密配置失败: {e}")
+                        # 如果解密失败，尝试判断是否为明文（JSON或Python Dict字符串）并标准化为JSON
+                        try:
+                            import json
+
+                            # 尝试作为JSON解析
+                            json.loads(configuration)
+                        except:
+                            try:
+                                import ast
+
+                                config_dict = ast.literal_eval(configuration)
+                            except:
+                                # 确实无法解析，保持原样
+                                pass
                 result.append(
                     {
                         "id": ds.id,
@@ -85,6 +110,8 @@ async def get_datasource_list(req: request.Request):
                         "type_name": ds.type_name,
                         "status": ds.status,
                         "num": ds.num,
+                        "host": config_dict["host"],
+                        "database": config_dict["database"],
                         "create_time": ds.create_time.isoformat() if ds.create_time else None,
                     }
                 )
@@ -328,6 +355,7 @@ async def get_datasource(req: request.Request, ds_id: int):
                 try:
                     from common.datasource_util import DatasourceConfigUtil
                     import json
+
                     config_dict = DatasourceConfigUtil.decrypt_config(configuration)
                     configuration = json.dumps(config_dict)
                 except Exception as e:
@@ -335,12 +363,14 @@ async def get_datasource(req: request.Request, ds_id: int):
                     # 如果解密失败，尝试判断是否为明文（JSON或Python Dict字符串）并标准化为JSON
                     try:
                         import json
+
                         # 尝试作为JSON解析
                         json.loads(configuration)
                     except:
                         try:
                             # 尝试作为Python Dict解析 (例如 {'a': 1})
                             import ast
+
                             config_dict = ast.literal_eval(configuration)
                             if isinstance(config_dict, dict):
                                 configuration = json.dumps(config_dict)

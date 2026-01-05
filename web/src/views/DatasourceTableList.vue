@@ -1,9 +1,9 @@
 <script lang="ts" setup>
-import { NButton, NIcon, NInput, NLayout, NLayoutContent, NLayoutSider, NMessageProvider, NModal, NSpin, NSwitch, NTable, NTabPane, NTabs, useMessage } from 'naive-ui'
-import { computed, nextTick, onMounted, ref } from 'vue'
+import { NBreadcrumb, NBreadcrumbItem, NButton, NDataTable, NGrid, NGridItem, NIcon, NInput, NLayout, NLayoutContent, NLayoutSider, NMessageProvider, NModal, NSpin, NSwitch, NTable, NTabPane, NTabs, NTag, NTooltip, useMessage } from 'naive-ui'
+import { computed, h, nextTick, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { fetch_datasource_detail, fetch_datasource_field_list, fetch_datasource_preview_data, fetch_datasource_table_list, save_datasource_field, save_datasource_table } from '@/api/datasource'
 import TableRelationship from './TableRelationship.vue'
-import { fetch_datasource_field_list, fetch_datasource_preview_data, fetch_datasource_table_list, save_datasource_field, save_datasource_table } from '@/api/datasource'
 
 const router = useRouter()
 const route = useRoute()
@@ -22,12 +22,15 @@ const previewData = ref<any>({ data: [], fields: [] })
 const activeName = ref('schema')
 const tableDialog = ref(false)
 const fieldDialog = ref(false)
+const mappingDialog = ref(false)
 const tableComment = ref('')
 const fieldComment = ref('')
+const mappingValue = ref('')
 const currentField = ref<any>({})
 const activeRelationship = ref(false)
 const relationshipRef = ref<any>(null)
 const isDrag = ref(false)
+const datasourceInfo = ref<any>({})
 
 // 搜索过滤
 const tableListWithSearch = computed(() => {
@@ -39,6 +42,88 @@ const tableListWithSearch = computed(() => {
     return name.toLowerCase().includes(searchValue.value.toLowerCase())
   })
 })
+
+// Schema 表格列定义
+const schemaColumns = [
+  { title: '字段名', key: 'field_name', width: 180, fixed: 'left' },
+  { title: '字段类型', key: 'field_type', width: 120 },
+  {
+    title: '字段注释',
+    key: 'field_comment',
+    width: 150,
+    render(row: any) {
+      return h(NTooltip, { trigger: 'hover' }, {
+        trigger: () => h('span', { class: 'text-ellipsis' }, row.field_comment || row.fieldComment || '-'),
+        default: () => row.field_comment || row.fieldComment || '-',
+      })
+    },
+  },
+  {
+    title: '自定义注释',
+    key: 'custom_comment',
+    width: 200,
+    render(row: any) {
+      return h('div', { class: 'editable-cell' }, [
+        h('span', { class: 'cell-value' }, row.custom_comment || '-'),
+        h(NButton, {
+          text: true,
+          size: 'tiny',
+          type: 'primary',
+          class: 'edit-icon',
+          onClick: () => editField(row),
+        }, { default: () => h('div', { class: 'i-carbon-edit' }) }),
+      ])
+    },
+  },
+  {
+    title: '数据映射',
+    key: 'data_mapping',
+    width: 200,
+    render(row: any) {
+      return h('div', { class: 'editable-cell' }, [
+        h('span', { class: 'cell-value' }, row.data_mapping || '-'),
+        h(NButton, {
+          text: true,
+          size: 'tiny',
+          type: 'primary',
+          class: 'edit-icon',
+          onClick: () => editMapping(row),
+        }, { default: () => h('div', { class: 'i-carbon-edit' }) }),
+      ])
+    },
+  },
+  {
+    title: '状态',
+    key: 'checked',
+    width: 80,
+    fixed: 'right',
+    render(row: any) {
+      return h(NSwitch, {
+        value: row.checked,
+        size: 'small',
+        onUpdateValue: (val) => {
+          row.checked = val
+          changeStatus(row)
+        },
+      })
+    },
+  },
+]
+
+// 获取数据源详情
+const fetchDatasourceInfo = async () => {
+  try {
+    const response = await fetch_datasource_detail(dsId.value)
+    if (response.ok) {
+      const result = await response.json()
+      if (result.code === 200) {
+        datasourceInfo.value = result.data || {}
+      }
+    }
+  } catch (error) {
+    console.error('获取数据源详情失败:', error)
+  }
+}
 
 // 获取数据源表列表
 const fetchTableList = async () => {
@@ -84,7 +169,12 @@ const clickTable = async (table: any) => {
 
     const result = await response.json()
     if (result.code === 200) {
-      fieldList.value = result.data || []
+      // 适配字段名
+      fieldList.value = (result.data || []).map((item: any) => ({
+        ...item,
+        field_name: item.field_name || item.fieldName,
+        field_type: item.field_type || item.fieldType,
+      }))
 
       // 获取预览数据
       await fetchPreviewData()
@@ -190,6 +280,42 @@ const saveField = async () => {
   }
 }
 
+// 编辑数据映射
+const editMapping = (row: any) => {
+  currentField.value = row
+  mappingValue.value = row.data_mapping || ''
+  mappingDialog.value = true
+}
+
+// 保存数据映射
+const saveMapping = async () => {
+  try {
+    const response = await save_datasource_field({
+      ...currentField.value,
+      data_mapping: mappingValue.value,
+    })
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`)
+    }
+
+    const result = await response.json()
+    if (result.code === 200) {
+      const index = fieldList.value.findIndex((f) => f.id === currentField.value.id)
+      if (index !== -1) {
+        fieldList.value[index].data_mapping = mappingValue.value
+      }
+      mappingDialog.value = false
+      message.success('保存成功')
+    } else {
+      message.error(result.msg || '保存失败')
+    }
+  } catch (error) {
+    console.error('保存数据映射失败:', error)
+    message.error('保存数据映射失败')
+  }
+}
+
 // 切换字段状态
 const changeStatus = async (row: any) => {
   try {
@@ -251,6 +377,7 @@ const handleDrop = (e: DragEvent) => {
 }
 
 onMounted(() => {
+  fetchDatasourceInfo()
   fetchTableList()
 })
 </script>
@@ -267,26 +394,47 @@ onMounted(() => {
           :collapsed-width="0"
           collapse-mode="width"
           bordered
-          content-style="padding: 16px; display: flex; flex-direction: column; background-color: #fafafa;"
+          class="sidebar"
         >
-          <div class="breadcrumb">
-            <span
-              class="breadcrumb-item"
-              @click="back"
-            >数据源</span>
-            <span class="breadcrumb-separator">></span>
-            <span class="breadcrumb-item active">{{ dsName }}</span>
+          <div class="sidebar-header">
+            <div class="header-top">
+              <n-button
+                text
+                class="back-btn"
+                @click="back"
+              >
+                <template #icon>
+                  <div class="i-carbon-arrow-left"></div>
+                </template>
+                返回
+              </n-button>
+              <n-tooltip trigger="hover">
+                <template #trigger>
+                  <div class="ds-name">
+                    {{ dsName }}
+                  </div>
+                </template>
+                <div class="ds-tooltip-info">
+                  <div>主机: {{ datasourceInfo.host || '-' }}</div>
+                  <div>数据库: {{ datasourceInfo.database || '-' }}</div>
+                </div>
+              </n-tooltip>
+            </div>
           </div>
-          <n-input
-            v-model:value="searchValue"
-            placeholder="搜索"
-            clearable
-            class="search-input"
-          >
-            <template #prefix>
-              <span style="color: #999">Q</span>
-            </template>
-          </n-input>
+
+          <div class="search-area">
+            <n-input
+              v-model:value="searchValue"
+              placeholder="搜索数据表..."
+              clearable
+              size="small"
+            >
+              <template #prefix>
+                <div class="i-carbon-search text-gray-400"></div>
+              </template>
+            </n-input>
+          </div>
+
           <div class="list-content">
             <n-spin :show="initLoading">
               <div
@@ -303,63 +451,46 @@ onMounted(() => {
                   @dragstart="(e) => { if (!e.dataTransfer) return; isDrag = true; e.dataTransfer.setData('table', JSON.stringify(item)) }"
                   @dragend="() => { isDrag = false }"
                 >
-                  <span class="table-icon">
-                    <img
-                      src="@/assets/images/table-icon.png"
-                      alt="表格图标"
-                      class="table-icon-img"
-                    >
-                  </span>
-                  <span class="table-name">{{ item.table_name || item.tableName || '-' }}</span>
+                  <div class="item-icon">
+                    <div class="i-carbon-data-table"></div>
+                  </div>
+                  <div class="item-info">
+                    <span
+                      class="table-name"
+                      :title="item.table_name || item.tableName"
+                    >{{ item.table_name || item.tableName || '-' }}</span>
+                    <span
+                      v-if="item.tableComment || item.custom_comment"
+                      class="table-comment"
+                    >{{ item.custom_comment || item.tableComment }}</span>
+                  </div>
                 </div>
               </div>
               <div
                 v-else
-                class="empty"
+                class="empty-state"
               >
-                暂无数据表
+                <n-empty description="暂无数据表" />
               </div>
             </n-spin>
           </div>
-          <div class="table-relationship">
+
+          <div class="sidebar-footer">
             <n-button
-              quaternary
-              icon-placement="left"
-              strong
-              :style="{
-                'width': `180px`,
-                'height': `38px`,
-                'margin-left': `20px`,
-                'margin-bottom': `10px`,
-                'align-self': `center`,
-                'text-align': `center`,
-                'font-family': `-apple-system, BlinkMacSystemFont,
-                'Segoe UI', Roboto, 'Helvetica Neue', Arial,sans-serif`,
-                'font-size': `14px`,
-              }"
+              block
+              secondary
+              :type="activeRelationship ? 'primary' : 'default'"
               @click="handleRelationship"
             >
               <template #icon>
-                <n-icon>
-                  <img
-                    src="@/assets/svg/table-relationship.svg"
-                    alt="表格图标"
-                    style="width: 18px; height: 18px;"
-                  >
-                </n-icon>
+                <div class="i-carbon-ibm-data-product-exchange"></div>
               </template>
-              表关系管理
+              {{ activeRelationship ? '返回列表' : '表关系管理' }}
             </n-button>
           </div>
         </n-layout-sider>
 
-        <n-layout-content
-          :style="{
-            'display': 'flex',
-            'flex-direction': 'column',
-            'background-color': '#fff',
-          }"
-        >
+        <n-layout-content class="main-content">
           <div
             v-if="activeRelationship"
             class="relationship-content"
@@ -375,113 +506,98 @@ onMounted(() => {
 
           <div
             v-else-if="currentTable.table_name"
-            class="right-side"
+            class="table-detail"
           >
-            <div class="table-header">
-              <div class="table-title">
-                <span class="table-name-text">{{ currentTable.table_name }}</span>
+            <div class="detail-header">
+              <div class="title-row">
+                <h2 class="table-title">
+                  {{ currentTable.table_name }}
+                </h2>
+                <n-tag
+                  size="small"
+                  type="info"
+                  :bordered="false"
+                >
+                  TABLE
+                </n-tag>
               </div>
-              <div class="table-comment">
-                <span class="comment-label">备注:</span>
-                <span class="comment-value">{{ currentTable.custom_comment || '-' }}</span>
+              <div class="desc-row">
+                <span class="label">备注:</span>
+                <span class="value">{{ currentTable.custom_comment || '暂无备注' }}</span>
                 <n-button
                   text
                   size="small"
+                  type="primary"
                   class="edit-btn"
                   @click="editTable"
                 >
-                  ✏️
+                  <template #icon>
+                    <div class="i-carbon-edit"></div>
+                  </template>
+                  编辑
                 </n-button>
               </div>
             </div>
 
-            <n-tabs
-              v-model:value="activeName"
-              type="segment"
-              class="content-tabs"
-              @update:value="handleTabChange"
-            >
-              <n-tab-pane
-                name="schema"
-                tab="表结构"
+            <div class="detail-body">
+              <n-tabs
+                v-model:value="activeName"
+                type="line"
+                animated
+                @update:value="handleTabChange"
               >
-                <n-spin :show="loading">
-                  <div class="schema-table-wrapper">
-                    <n-table
-                      class="data-table"
-                      :bordered="false"
-                    >
-                      <thead>
-                        <tr>
-                          <th>字段名</th>
-                          <th>字段类型</th>
-                          <th>字段注释</th>
-                          <th>自定义注释</th>
-                          <th>状态</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        <tr
-                          v-for="row in fieldList"
-                          :key="row.id"
-                        >
-                          <td>{{ row.field_name || row.fieldName }}</td>
-                          <td>{{ row.field_type || row.fieldType }}</td>
-                          <td>{{ row.field_comment || row.fieldComment || '-' }}</td>
-                          <td>
-                            <div style="display: flex; align-items: center; gap: 8px">
-                              <span>{{ row.custom_comment || '-' }}</span>
-                              <n-button
-                                text
-                                size="small"
-                                @click="editField(row)"
-                              >
-                                编辑
-                              </n-button>
-                            </div>
-                          </td>
-                          <td>
-                            <n-switch
-                              :value="row.checked"
-                              @update:value="(val) => { row.checked = val; changeStatus(row) }"
-                            />
-                          </td>
-                        </tr>
-                      </tbody>
-                    </n-table>
-                  </div>
-                </n-spin>
-              </n-tab-pane>
-              <n-tab-pane
-                name="preview"
-                tab="数据预览"
-              >
-                <div class="preview-info">
-                  显示 {{ previewData.data.length }} 条数据
-                </div>
-                <n-data-table
-                  v-if="previewData.data.length > 0"
-                  :columns="previewData.fields.map(field => ({ title: field, key: field }))"
-                  :data="previewData.data"
-                  :bordered="false"
-                  :max-height="600"
-                  class="data-table"
-                />
-                <div
-                  v-else
-                  class="empty-table"
+                <n-tab-pane
+                  name="schema"
+                  tab="表结构"
                 >
-                  暂无预览数据
-                </div>
-              </n-tab-pane>
-            </n-tabs>
+                  <div class="table-wrapper">
+                    <n-data-table
+                      :columns="schemaColumns"
+                      :data="fieldList"
+                      :loading="loading"
+                      :bordered="false"
+                      flex-height
+                      :style="{ height: '100%' }"
+                      :scroll-x="1000"
+                    />
+                  </div>
+                </n-tab-pane>
+                <n-tab-pane
+                  name="preview"
+                  tab="数据预览"
+                >
+                  <div class="preview-wrapper">
+                    <div class="preview-header">
+                      显示前 100 条数据
+                    </div>
+                    <n-data-table
+                      v-if="previewData.data.length > 0"
+                      :columns="previewData.fields.map((field: any) => ({ title: field, key: field, width: 150, ellipsis: { tooltip: true } }))"
+                      :data="previewData.data"
+                      :bordered="false"
+                      flex-height
+                      :style="{ height: '100%' }"
+                      :scroll-x="previewData.fields.length * 150"
+                    />
+                    <n-empty
+                      v-else
+                      description="暂无预览数据"
+                      class="empty-preview"
+                    />
+                  </div>
+                </n-tab-pane>
+              </n-tabs>
+            </div>
           </div>
 
           <div
             v-else
-            class="right-side empty-content"
+            class="empty-content"
           >
-            <div>请选择左侧数据表查看详情</div>
+            <n-empty
+              description="请选择左侧数据表查看详情"
+              size="large"
+            />
           </div>
         </n-layout-content>
       </n-layout>
@@ -492,6 +608,8 @@ onMounted(() => {
       v-model:show="tableDialog"
       preset="dialog"
       title="编辑表注释"
+      positive-text="保存"
+      negative-text="取消"
       @positive-click="saveTable"
     >
       <n-input
@@ -507,6 +625,8 @@ onMounted(() => {
       v-model:show="fieldDialog"
       preset="dialog"
       title="编辑字段注释"
+      positive-text="保存"
+      negative-text="取消"
       @positive-click="saveField"
     >
       <n-input
@@ -516,273 +636,329 @@ onMounted(() => {
         :rows="3"
       />
     </n-modal>
+
+    <!-- 数据映射对话框 -->
+    <n-modal
+      v-model:show="mappingDialog"
+      preset="dialog"
+      title="编辑数据映射"
+      positive-text="保存"
+      negative-text="取消"
+      @positive-click="saveMapping"
+    >
+      <n-input
+        v-model:value="mappingValue"
+        type="textarea"
+        placeholder="请输入数据映射规则，例如：0=未知,1=男,2=女"
+        :rows="3"
+      />
+      <div class="mapping-hint">
+        格式参考：原始值=映射值，多个映射用逗号分隔
+      </div>
+    </n-modal>
   </n-message-provider>
 </template>
 
 <style lang="scss" scoped>
 .table-list-layout {
-  width: 100%;
   height: 100vh;
+  background-color: #f9fafb;
+}
+
+.sidebar {
+  background-color: #fff;
   display: flex;
   flex-direction: column;
-  background-color: #f5f5f5;
 
-  :deep(.n-layout) {
-    height: 100%;
-  }
-
-  :deep(.n-layout-sider) {
-    height: 100%;
-  }
-
-  :deep(.n-layout-content) {
-    height: 100%;
-  }
-
-  .breadcrumb {
+  :deep(.n-layout-sider-scroll-container) {
     display: flex;
-    align-items: center;
-    margin-bottom: 16px;
-    font-size: 12px;
-    color: #666;
+    flex-direction: column;
+  }
+
+  .sidebar-header {
+    padding: 16px;
+    border-bottom: 1px solid #f3f4f6;
+    background: #fff;
     flex-shrink: 0;
 
-    .breadcrumb-item {
-      cursor: pointer;
-      color: #1890ff;
+    .header-top {
+      display: flex;
+      align-items: center;
 
-      &:hover {
-        color: #40a9ff;
+      .back-btn {
+        margin-right: 8px;
+        color: #6b7280;
+
+        &:hover {
+          color: #111827;
+        }
       }
 
-      &.active {
-        color: #666;
-        cursor: default;
+      .ds-name {
+        font-size: 16px;
+        font-weight: 600;
+        color: #111827;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 180px;
+        cursor: pointer;
       }
-    }
-
-    .breadcrumb-separator {
-      margin: 0 8px;
-      color: #999;
     }
   }
 
-  .search-input {
-    margin-bottom: 12px;
+  .search-area {
+    padding: 12px 16px;
+    background: #fff;
     flex-shrink: 0;
   }
 
   .list-content {
     flex: 1;
     overflow-y: auto;
-    margin-bottom: 16px;
-    min-height: 0;
+    padding: 0 8px 16px;
 
-    .table-list {
+    .list-item {
+      display: flex;
+      align-items: flex-start;
+      padding: 10px 12px;
+      cursor: pointer;
+      border-radius: 6px;
+      margin-bottom: 2px;
+      font-size: 14px;
+      color: #374151;
+      transition: all 0.2s;
 
-      .list-item {
+      .item-icon {
+        margin-right: 10px;
+        color: #9ca3af;
         display: flex;
         align-items: center;
-        padding: 10px 12px;
-        cursor: pointer;
-        border-radius: 4px;
-        margin-bottom: 2px;
-        font-size: 14px;
-        transition: all 0.2s;
+        margin-top: 3px;
+      }
 
-        .table-icon {
-          margin-right: 8px;
-          font-size: 16px;
-        }
+      .item-info {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
 
         .table-name {
-          flex: 1;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          line-height: 1.5;
         }
 
-        &:hover {
-          background-color: #f0f0f0;
+        .table-comment {
+          font-size: 12px;
+          color: #9ca3af;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          line-height: 1.4;
         }
+      }
 
-        &.active {
-          background-color: #e6f7ff;
-          color: #1890ff;
-          font-weight: 500;
+      &:hover {
+        background-color: #f3f4f6;
+        color: #111827;
+
+        .item-icon {
+          color: #4b5563;
+        }
+      }
+
+      &.active {
+        background-color: #eff6ff;
+        color: #2563eb;
+        font-weight: 500;
+
+        .item-icon {
+          color: #2563eb;
         }
       }
     }
+  }
 
-    .empty {
-      text-align: center;
-      color: #999;
-      padding: 40px 0;
+  .sidebar-footer {
+    padding: 20px;
+    margin-bottom: 10px;
+    border-top: 1px solid #fff;
+    background: #fff;
+    display: flex;
+    justify-content: center;
+  }
+}
+
+.main-content {
+  background-color: #fff;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.relationship-content {
+  height: 100%;
+  padding: 16px;
+  background-color: #f9fafb;
+}
+
+.table-detail {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+
+  .detail-header {
+    padding: 24px 32px;
+    border-bottom: 1px solid #f3f4f6;
+    flex-shrink: 0;
+
+    .title-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 8px;
+
+      .table-title {
+        margin: 0;
+        font-size: 24px;
+        font-weight: 600;
+        color: #111827;
+      }
+    }
+
+    .desc-row {
+      display: flex;
+      align-items: center;
       font-size: 14px;
+      color: #6b7280;
+
+      .label {
+        margin-right: 8px;
+      }
+
+      .value {
+        color: #374151;
+        margin-right: 16px;
+      }
+
+      .edit-btn {
+        padding: 0 4px;
+      }
     }
   }
 
-  .table-relationship {
-    padding-top: 12px;
-    border-top: 1px solid #e8e8e8;
-    flex-shrink: 0;
-  }
-
-  .relationship-content {
-    width: 100%;
-    height: 100%;
-    padding: 12px 12px 12px 0;
-    background-color: #f5f6f7;
+  .detail-body {
+    flex: 1;
+    padding: 0 32px;
     overflow: hidden;
     display: flex;
     flex-direction: column;
 
-    :deep(#relationship-container) {
-      width: 100%;
+    :deep(.n-tabs) {
       height: 100%;
-      background-color: #f5f6f7;
-    }
-  }
-
-  .right-side {
-    flex: 1;
-    height: 100%;
-    min-width: 0;
-    display: flex;
-    flex-direction: column;
-    background-color: #fff;
-    padding: 20px 24px;
-    overflow-y: auto;
-
-    .table-header {
-      margin-bottom: 20px;
-      padding-bottom: 16px;
-      border-bottom: 1px solid #e8e8e8;
-      flex-shrink: 0;
-
-      .table-title {
-        margin-bottom: 8px;
-
-        .table-name-text {
-          font-size: 18px;
-          font-weight: 600;
-          color: #333;
-        }
-      }
-
-      .table-comment {
-        display: flex;
-        align-items: center;
-        font-size: 14px;
-        color: #666;
-
-        .comment-label {
-          margin-right: 8px;
-        }
-
-        .comment-value {
-          flex: 1;
-        }
-
-        .edit-btn {
-          margin-left: 8px;
-          padding: 0;
-          min-width: auto;
-          height: auto;
-          font-size: 14px;
-        }
-      }
-    }
-
-    .content-tabs {
-      flex: 1;
       display: flex;
       flex-direction: column;
-      min-height: 0;
 
-      :deep(.n-tabs-nav) {
-        margin-bottom: 16px;
-        flex-shrink: 0;
-      }
-
-      :deep(.n-tabs-pane-wrapper) {
+      .n-tabs-pane-wrapper {
         flex: 1;
-        min-height: 0;
-        overflow-y: auto;
+        overflow: hidden;
       }
 
-      :deep(.n-tab-pane) {
-        padding: 0;
+      .n-tab-pane {
         height: 100%;
+        padding: 16px 0;
       }
-    }
-
-    .preview-info {
-      margin-bottom: 12px;
-      font-size: 14px;
-      color: #666;
-    }
-
-    .schema-table-wrapper {
-      max-height: 600px;
-      overflow-y: auto;
-      border: 1px solid #e8e8e8;
-      border-radius: 4px;
-
-      :deep(.n-table-wrapper) {
-        border: none;
-      }
-    }
-
-    .data-table {
-
-      :deep(.n-table-wrapper) {
-        border: 1px solid #e8e8e8;
-        border-radius: 4px;
-      }
-
-      :deep(thead th) {
-        background-color: #fafafa;
-        font-weight: 500;
-        color: #333;
-        border-bottom: 1px solid #e8e8e8;
-        position: sticky;
-        top: 0;
-        z-index: 1;
-      }
-
-      :deep(tbody tr) {
-
-        &:hover {
-          background-color: #fafafa;
-        }
-      }
-
-      :deep(td) {
-        border-bottom: 1px solid #f0f0f0;
-      }
-    }
-
-    .empty-table {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 40px 0;
-      color: #999;
-      font-size: 14px;
-    }
-
-    &.empty-content {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: #999;
-      font-size: 14px;
-      width: 100%;
     }
   }
 }
 
-.table-icon-img {
-  width: 16px;
-  height: 16px;
-  object-fit: contain;
+.table-wrapper {
+  height: 100%;
+  border: 1px solid #f3f4f6;
+  border-radius: 8px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.preview-wrapper {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid #f3f4f6;
+  border-radius: 8px;
+  overflow: hidden;
+
+  .preview-header {
+    padding: 12px 16px;
+    background: #f9fafb;
+    border-bottom: 1px solid #f3f4f6;
+    font-size: 12px;
+    color: #6b7280;
+    flex-shrink: 0;
+  }
+
+  .empty-preview {
+    margin: auto;
+  }
+}
+
+.empty-content {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #f9fafb;
+}
+
+.editable-cell {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+
+  .cell-value {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    margin-right: 8px;
+  }
+
+  .edit-icon {
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+
+  &:hover .edit-icon {
+    opacity: 1;
+  }
+}
+
+.text-ellipsis {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mapping-hint {
+  margin-top: 8px;
+  font-size: 12px;
+  color: #9ca3af;
+}
+
+.ds-tooltip-info {
+  font-size: 12px;
+
+  div {
+    margin-bottom: 4px;
+
+    &:last-child {
+      margin-bottom: 0;
+    }
+  }
 }
 </style>
