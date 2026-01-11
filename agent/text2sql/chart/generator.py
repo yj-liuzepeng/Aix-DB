@@ -137,7 +137,7 @@ def chart_generator(state: AgentState) -> AgentState:
                 if "type" not in chart_config:
                     chart_config["type"] = chart_type_simple
                 
-                # 参考SQLBot实现：对所有value字段进行lowercase处理，确保后续映射时能正确匹配
+                # 对所有value字段进行lowercase处理，确保后续映射时能正确匹配
                 # 处理columns字段（表格类型）
                 if chart_config.get('columns'):
                     for col in chart_config.get('columns', []):

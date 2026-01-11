@@ -100,6 +100,19 @@ const chartTitleMap: Record<string, string> = {
 
 const chartTitle = computed(() => chartTitleMap[templateCode.value] || '图表')
 
+// 现代化配色方案
+const modernColorPalette = [
+  '#667eea', '#764ba2', '#f093fb', '#4facfe', '#00f2fe',
+  '#43e97b', '#fa709a', '#fee140', '#30cfd0', '#330867',
+  '#a8edea', '#fed6e3', '#ffecd2', '#fcb69f', '#ff9a9e',
+  '#a18cd1', '#fbc2eb', '#ffd1dc', '#ffecd2', '#d299c2'
+]
+
+// 生成渐变色配置
+const getGradientColor = (color: string) => {
+  return `l(0) 0:${color} 1:#ffffff`
+}
+
 // 销毁图表实例
 const destroyChart = () => {
   if (chartInstance) {
@@ -148,21 +161,95 @@ const renderChart = async () => {
         data: pieData,
         angleField: 'value',
         colorField: 'name',
-        radius: 0.9,
+        radius: 0.75,
+        innerRadius: 0.5,
+        color: modernColorPalette,
+        statistic: {
+          title: false,
+          content: {
+            style: {
+              whiteSpace: 'pre-wrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              fontSize: 16,
+              fontWeight: 500,
+              color: '#333',
+            },
+            content: '',
+          },
+        },
         label: {
           type: 'inner',
-          offset: '-30%',
-          content: ({ percent }) => `${(percent * 100).toFixed(0)}%`,
+          offset: '-50%',
+          content: ({ percent, name }) => {
+            const percentValue = (percent * 100).toFixed(1)
+            return percentValue > 5 ? `${name}\n${percentValue}%` : ''
+          },
           style: {
-            fontSize: 14,
+            fontSize: 13,
+            fontWeight: 500,
             textAlign: 'center',
+            fill: '#fff',
+            textBaseline: 'middle',
+            shadowBlur: 2,
+            shadowColor: 'rgba(0, 0, 0, 0.3)',
+          },
+        },
+        legend: {
+          position: 'bottom',
+          itemName: {
+            style: {
+              fill: '#333',
+              fontSize: 13,
+              fontWeight: 500,
+            },
+          },
+          marker: {
+            symbol: 'circle',
+            style: {
+              r: 6,
+            },
+          },
+          itemSpacing: 20,
+        },
+        tooltip: {
+          showTitle: true,
+          showMarkers: false,
+          formatter: (datum) => {
+            return {
+              name: datum.name,
+              value: `${datum.value} (${((datum.percent || 0) * 100).toFixed(2)}%)`,
+            }
+          },
+          domStyles: {
+            'g2-tooltip': {
+              background: 'rgba(255, 255, 255, 0.95)',
+              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+              borderRadius: '8px',
+              padding: '12px 16px',
+              border: '1px solid rgba(102, 126, 234, 0.2)',
+            },
+            'g2-tooltip-title': {
+              fontSize: '14px',
+              fontWeight: 600,
+              color: '#333',
+              marginBottom: '8px',
+            },
+            'g2-tooltip-list-item': {
+              fontSize: '13px',
+              color: '#666',
+            },
           },
         },
         interactions: [
           { type: 'element-active' },
+          { type: 'pie-statistic-active' },
         ],
-        legend: {
-          position: 'bottom',
+        animation: {
+          appear: {
+            animation: 'wave-in',
+            duration: 1000,
+          },
         },
       }
 
@@ -199,12 +286,29 @@ const renderChart = async () => {
         xField: 'name',
         yField: 'value',
         ...(hasSeries && seriesCol ? { seriesField: 'series' } : {}),
-        columnWidthRatio: hasSeries ? 0.7 : 0.6,
+        columnWidthRatio: hasSeries ? 0.65 : 0.55,
+        color: hasSeries ? modernColorPalette : (datum: any) => {
+          // 单系列柱状图使用渐变色
+          return 'l(270) 0:#667eea 1:#764ba2'
+        },
+        columnStyle: {
+          radius: [8, 8, 0, 0],
+        },
         label: {
           position: 'top' as const,
+          offset: 8,
           style: {
-            fill: '#666',
+            fill: '#333',
             fontSize: 12,
+            fontWeight: 500,
+            textBaseline: 'bottom',
+          },
+          formatter: (datum: any) => {
+            const value = datum.value
+            if (typeof value === 'number') {
+              return value >= 1000 ? `${(value / 1000).toFixed(1)}k` : value.toFixed(0)
+            }
+            return value
           },
         },
         xAxis: {
@@ -214,10 +318,9 @@ const renderChart = async () => {
             autoHide: true,
             style: {
               fontSize: 12,
+              fill: '#666',
             },
             formatter: (text: string) => {
-              // 当不旋转时，如果标签太长（>12字符），截断并添加省略号
-              // 当旋转时，允许更长的标签（因为旋转后占用高度而非宽度）
               const maxLength = shouldRotate ? 15 : 12
               if (text && text.length > maxLength) {
                 return text.slice(0, maxLength) + '...'
@@ -225,19 +328,58 @@ const renderChart = async () => {
               return text
             },
           },
+          line: {
+            style: {
+              stroke: '#e0e0e0',
+              lineWidth: 1,
+            },
+          },
+          grid: {
+            line: {
+              style: {
+                stroke: '#f0f0f0',
+                lineWidth: 1,
+                lineDash: [4, 4],
+              },
+            },
+          },
           title: {
             text: xCol,
             style: {
               fontSize: 14,
               fill: '#333',
-              fontWeight: 500,
+              fontWeight: 600,
             },
+            spacing: 8,
           },
         },
         yAxis: {
           label: {
             style: {
               fontSize: 12,
+              fill: '#666',
+            },
+            formatter: (text: string) => {
+              const num = Number.parseFloat(text)
+              if (num >= 1000) {
+                return `${(num / 1000).toFixed(1)}k`
+              }
+              return text
+            },
+          },
+          line: {
+            style: {
+              stroke: '#e0e0e0',
+              lineWidth: 1,
+            },
+          },
+          grid: {
+            line: {
+              style: {
+                stroke: '#f0f0f0',
+                lineWidth: 1,
+                lineDash: [4, 4],
+              },
             },
           },
           title: {
@@ -245,21 +387,65 @@ const renderChart = async () => {
             style: {
               fontSize: 14,
               fill: '#333',
-              fontWeight: 500,
+              fontWeight: 600,
             },
+            spacing: 8,
           },
         },
         legend: hasSeries && seriesCol ? {
           position: 'bottom' as const,
-          itemSpacing: 16,
+          itemSpacing: 24,
+          itemName: {
+            style: {
+              fill: '#333',
+              fontSize: 13,
+              fontWeight: 500,
+            },
+          },
+          marker: {
+            symbol: 'square',
+            style: {
+              r: 6,
+            },
+          },
         } : undefined,
         tooltip: {
           shared: true,
           showMarkers: false,
+          domStyles: {
+            'g2-tooltip': {
+              background: 'rgba(255, 255, 255, 0.95)',
+              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+              borderRadius: '8px',
+              padding: '12px 16px',
+              border: '1px solid rgba(102, 126, 234, 0.2)',
+            },
+            'g2-tooltip-title': {
+              fontSize: '14px',
+              fontWeight: 600,
+              color: '#333',
+              marginBottom: '8px',
+            },
+            'g2-tooltip-list-item': {
+              fontSize: '13px',
+              color: '#666',
+            },
+          },
         },
         interactions: [
           { type: 'element-active' },
+          { type: 'element-highlight' },
         ],
+        animation: {
+          appear: {
+            animation: 'scale-in-y',
+            duration: 800,
+          },
+          update: {
+            animation: 'scale-in-y',
+            duration: 400,
+          },
+        },
       }
 
       chartInstance = new Column(container, config)
@@ -279,14 +465,36 @@ const renderChart = async () => {
         data: lineData,
         xField: 'name',
         yField: 'value',
+        color: '#667eea',
         point: {
-          size: 5,
+          size: 6,
           shape: 'circle',
+          style: {
+            fill: '#fff',
+            stroke: '#667eea',
+            lineWidth: 2,
+            r: 6,
+          },
+        },
+        lineStyle: {
+          lineWidth: 3,
+          stroke: '#667eea',
         },
         label: {
+          position: 'top',
+          offset: 10,
           style: {
-            fill: '#666',
+            fill: '#333',
             fontSize: 12,
+            fontWeight: 500,
+            textBaseline: 'bottom',
+          },
+          formatter: (datum: any) => {
+            const value = datum.value
+            if (typeof value === 'number') {
+              return value >= 1000 ? `${(value / 1000).toFixed(1)}k` : value.toFixed(0)
+            }
+            return value
           },
         },
         xAxis: {
@@ -294,6 +502,22 @@ const renderChart = async () => {
             autoRotate: false,
             style: {
               fontSize: 12,
+              fill: '#666',
+            },
+          },
+          line: {
+            style: {
+              stroke: '#e0e0e0',
+              lineWidth: 1,
+            },
+          },
+          grid: {
+            line: {
+              style: {
+                stroke: '#f0f0f0',
+                lineWidth: 1,
+                lineDash: [4, 4],
+              },
             },
           },
           title: {
@@ -301,14 +525,38 @@ const renderChart = async () => {
             style: {
               fontSize: 14,
               fill: '#333',
-              fontWeight: 500,
+              fontWeight: 600,
             },
+            spacing: 8,
           },
         },
         yAxis: {
           label: {
             style: {
               fontSize: 12,
+              fill: '#666',
+            },
+            formatter: (text: string) => {
+              const num = Number.parseFloat(text)
+              if (num >= 1000) {
+                return `${(num / 1000).toFixed(1)}k`
+              }
+              return text
+            },
+          },
+          line: {
+            style: {
+              stroke: '#e0e0e0',
+              lineWidth: 1,
+            },
+          },
+          grid: {
+            line: {
+              style: {
+                stroke: '#f0f0f0',
+                lineWidth: 1,
+                lineDash: [4, 4],
+              },
             },
           },
           title: {
@@ -316,14 +564,57 @@ const renderChart = async () => {
             style: {
               fontSize: 14,
               fill: '#333',
-              fontWeight: 500,
+              fontWeight: 600,
             },
+            spacing: 8,
           },
         },
         smooth: true,
+        tooltip: {
+          showMarkers: true,
+          marker: {
+            symbol: 'circle',
+            style: {
+              r: 6,
+              fill: '#667eea',
+              stroke: '#fff',
+              lineWidth: 2,
+            },
+          },
+          domStyles: {
+            'g2-tooltip': {
+              background: 'rgba(255, 255, 255, 0.95)',
+              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+              borderRadius: '8px',
+              padding: '12px 16px',
+              border: '1px solid rgba(102, 126, 234, 0.2)',
+            },
+            'g2-tooltip-title': {
+              fontSize: '14px',
+              fontWeight: 600,
+              color: '#333',
+              marginBottom: '8px',
+            },
+            'g2-tooltip-list-item': {
+              fontSize: '13px',
+              color: '#666',
+            },
+          },
+        },
         interactions: [
           { type: 'element-active' },
+          { type: 'marker-active' },
         ],
+        animation: {
+          appear: {
+            animation: 'path-in',
+            duration: 1000,
+          },
+          update: {
+            animation: 'path-in',
+            duration: 400,
+          },
+        },
       }
 
       chartInstance = new Line(container, config)
@@ -374,17 +665,18 @@ onBeforeUnmount(() => {
       class="modern-chart-card"
       :content-style="{
         'background': 'linear-gradient(to bottom, #fafbff 0%, #ffffff 100%)',
-        'padding': '12px',
+        'padding': '16px',
       }"
       :header-style="{
         'color': '#ffffff',
         'background': 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-        'padding': '16px 24px',
-        'font-size': '16px',
+        'padding': '18px 28px',
+        'font-size': '17px',
         'font-weight': '600',
         'letter-spacing': '0.5px',
-        'border-radius': '8px 8px 0 0',
+        'border-radius': '16px 16px 0 0',
         'text-align': 'left',
+        'box-shadow': '0 2px 8px rgba(102, 126, 234, 0.2)',
       }"
     >
       <!-- 表格渲染 -->
@@ -419,11 +711,12 @@ onBeforeUnmount(() => {
 }
 
 .modern-chart-card {
-  border-radius: 12px;
-  box-shadow: 0 4px 20px rgba(102, 126, 234, 0.15);
-  border: 1px solid rgba(102, 126, 234, 0.1);
+  border-radius: 16px;
+  box-shadow: 0 4px 24px rgba(102, 126, 234, 0.12), 0 2px 8px rgba(0, 0, 0, 0.08);
+  border: 1px solid rgba(102, 126, 234, 0.15);
   overflow: hidden;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  background: #ffffff;
 }
 
 :deep(.modern-chart-card .n-card-header) {
@@ -435,8 +728,9 @@ onBeforeUnmount(() => {
 }
 
 .modern-chart-card:hover {
-  box-shadow: 0 8px 30px rgba(102, 126, 234, 0.2);
-  transform: translateY(-2px);
+  box-shadow: 0 8px 32px rgba(102, 126, 234, 0.18), 0 4px 16px rgba(0, 0, 0, 0.1);
+  transform: translateY(-3px);
+  border-color: rgba(102, 126, 234, 0.25);
 }
 
 .table-container {
@@ -530,11 +824,13 @@ onBeforeUnmount(() => {
 
 .chart-container {
   width: 100%;
-  height: 500px;
-  padding: 20px;
+  height: 520px;
+  padding: 28px;
   background: linear-gradient(to bottom, #fafbff 0%, #ffffff 100%);
-  border-radius: 8px;
+  border-radius: 12px;
   position: relative;
+  overflow: hidden;
+  min-height: 400px;
 }
 
 .chart-container::before {
@@ -545,6 +841,41 @@ onBeforeUnmount(() => {
   right: 0;
   height: 1px;
   background: linear-gradient(90deg, transparent, rgba(102, 126, 234, 0.2), transparent);
+}
+
+/* 图表容器内的全局样式优化 */
+:deep(.chart-container canvas) {
+  border-radius: 4px;
+}
+
+/* 优化图例样式 */
+:deep(.g2-legend) {
+  padding: 16px 0 !important;
+}
+
+:deep(.g2-legend-list-item) {
+  margin: 0 12px !important;
+  padding: 4px 8px !important;
+  border-radius: 4px !important;
+  transition: all 0.2s ease !important;
+}
+
+:deep(.g2-legend-list-item:hover) {
+  background: rgba(102, 126, 234, 0.1) !important;
+}
+
+/* 优化坐标轴样式 */
+:deep(.g2-axis-line) {
+  stroke: #e0e0e0 !important;
+}
+
+:deep(.g2-axis-tick-line) {
+  stroke: #e0e0e0 !important;
+}
+
+/* 优化网格线样式 */
+:deep(.g2-grid-line) {
+  stroke: #f0f0f0 !important;
 }
 
 /* 滚动条样式优化 */

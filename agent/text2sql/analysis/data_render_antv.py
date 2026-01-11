@@ -174,7 +174,7 @@ def extract_select_columns(sql: str, db_type: str = "mysql", table_alias_mapping
                     else:
                         col_info["name"] = str(proj)
 
-                    # 获取别名（参考SQLBot逻辑：去掉外层的反引号、双引号、方括号）
+                    # 获取别名（去掉外层的反引号、双引号、方括号）
                     def clean_alias(alias_str: str) -> str:
                         """清理别名：去掉反引号、双引号、方括号"""
                         if not alias_str:
@@ -220,7 +220,7 @@ def extract_select_columns(sql: str, db_type: str = "mysql", table_alias_mapping
 def extract_chart_config_mapping(chart_config: Optional[Dict[str, Any]]) -> Dict[str, str]:
     """
     从chart_config中提取列名映射（value -> name）
-    参考SQLBot的映射逻辑：chart_config中的columns/axis包含name和value字段
+    chart_config中的columns/axis包含name和value字段
     
     Args:
         chart_config: 图表配置字典
@@ -310,7 +310,7 @@ def map_columns_to_comments(
     db_type: str = "mysql", chart_config: Optional[Dict[str, Any]] = None
 ) -> Tuple[List[str], Dict[str, str]]:
     """
-    将 SQL 查询结果的列名映射为中文注释（参考SQLBot的映射逻辑，优先使用chart_config中的name）
+    将 SQL 查询结果的列名映射为中文注释（优先使用chart_config中的name）
     
     映射优先级（从高到低）：
     1. chart_config中的name字段（LLM在chart配置生成时根据语义推断生成的中文名称）
@@ -331,7 +331,7 @@ def map_columns_to_comments(
         column_mapping: {实际列名: 中文列名} 的映射
     """
     try:
-        # 优先从chart_config中提取映射（参考SQLBot逻辑）
+        # 优先从chart_config中提取映射
         chart_config_mapping = extract_chart_config_mapping(chart_config)
         
         # 提取表别名映射（将别名转换为真实表名）
@@ -381,7 +381,7 @@ def map_columns_to_comments(
 
                     # 如果是聚合函数,按照优先级映射（中文名称由LLM在chart配置生成时根据语义推断生成）
                     if is_aggregate:
-                        # 优先级1: chart_config中的name（LLM生成的中文名称，参考SQLBot逻辑）
+                        # 优先级1: chart_config中的name（LLM生成的中文名称）
                         chinese_name = chart_config_mapping.get(actual_col_name.lower()) or chart_config_mapping.get(alias.lower() if alias else "")
                         
                         # 优先级2: SQL中的中文别名
@@ -431,7 +431,7 @@ def map_columns_to_comments(
                                         break
                         
                         # 按照优先级确定中文名称（中文名称由LLM在chart配置生成时根据语义推断生成）
-                        # 优先级1: chart_config中的name（LLM生成的中文名称，参考SQLBot逻辑）
+                        # 优先级1: chart_config中的name（LLM生成的中文名称）
                         chinese_name = chart_config_mapping.get(actual_col_name.lower()) or chart_config_mapping.get(alias.lower() if alias else "")
                         
                         # 优先级2: 数据库字段注释（COMMENT）
@@ -525,7 +525,7 @@ async def data_render_ant(state: AgentState):
         # 获取chart_config（优先使用chart_config中的name字段作为中文名称）
         chart_config = state.get("chart_config", {})
         
-        # 映射列名为中文注释（参考SQLBot逻辑，优先使用chart_config中的name）
+        # 映射列名为中文注释（优先使用chart_config中的name）
         column_names_chinese, column_mapping = map_columns_to_comments(
             generated_sql, db_info, actual_columns, db_type, chart_config
         )

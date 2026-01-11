@@ -139,7 +139,7 @@ const handleTest = async () => {
   try {
     const res = await check_model_status(formData)
     // Response handling might differ based on API implementation
-    // check_llm returns streaming response in SQLBot, but maybe I'll simplify to JSON for now
+    // check_llm returns streaming response, but maybe I'll simplify to JSON for now
     window.$ModalMessage.success('连接成功')
   } catch (e) {
     window.$ModalMessage.error('连接失败')

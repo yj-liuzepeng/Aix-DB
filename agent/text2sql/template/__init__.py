@@ -1,5 +1,5 @@
 """
-SQLBot 模板系统迁移模块
+模板系统模块
 """
 
 from agent.text2sql.template.template_loader import TemplateLoader

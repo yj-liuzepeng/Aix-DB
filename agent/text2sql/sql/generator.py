@@ -1,6 +1,6 @@
 """
 SQL 生成节点
-使用 SQLBot 模板系统生成 SQL 语句
+使用模板系统生成 SQL 语句
 """
 
 import json
@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 
 def sql_generate(state: AgentState) -> AgentState:
     """
-    使用 SQLBot 模板系统生成 SQL 语句
+    使用模板系统生成 SQL 语句
     
     Args:
         state: Agent 状态对象
@@ -75,7 +75,7 @@ def sql_generate(state: AgentState) -> AgentState:
         
         # 获取表关系信息（格式化）
         table_relationship = state.get("table_relationship", [])
-        # 将表关系格式化为字符串（如果 SQLBot 模板需要的话）
+        # 将表关系格式化为字符串（如果模板需要的话）
         # 当前模板中似乎不直接使用 table_relationship，但保留以备后用
         
         # 使用 PromptBuilder 构建提示词

@@ -1,6 +1,6 @@
 """
 Schema 格式化工具
-将当前项目的 db_info 字典格式转换为 SQLBot 需要的 M-Schema 字符串格式
+将当前项目的 db_info 字典格式转换为 M-Schema 字符串格式
 """
 
 import logging
@@ -79,7 +79,7 @@ def format_schema_to_m_schema(
     # 添加外键关系信息（如果存在）
     # 当前项目中，表关系信息通过 Neo4j 获取，格式为：
     # [{"from_table": "table1", "relationship": "relation", "to_table": "table2"}, ...]
-    # SQLBot 的格式为：table1.column=table2.column
+    # M-Schema 的格式为：table1.column=table2.column
     # 由于当前项目的表关系信息不包含具体的列信息，暂时不添加外键部分
     # TODO: 阶段二可以增强，从 Neo4j 或数据库 metadata 中获取完整的外键信息
     
