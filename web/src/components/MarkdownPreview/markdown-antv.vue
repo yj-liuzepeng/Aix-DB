@@ -7,6 +7,7 @@ import { NDataTable, NCard, NButton, NIcon, NSpin } from 'naive-ui'
 import { Pie, Column, Line } from '@antv/g2plot'
 import type { PieOptions, ColumnOptions, LineOptions, Plot } from '@antv/g2plot'
 import * as GlobalAPI from '@/api'
+import { formatSQL } from '@/utils/sqlFormatter'
 
 const props = defineProps({
   chartId: {
@@ -119,36 +120,9 @@ const isDatabaseQa = computed(() => {
   return props.qaType === 'DATABASE_QA'
 })
 
-// 格式化SQL语句
+// 格式化SQL语句：复用全局 SQL 格式化工具，保证与系统其它页面一致
 const formatSql = (sql: string) => {
-  if (!sql) return ''
-  
-  // 清理SQL：去除多余的空白字符
-  let cleaned = sql.trim().replace(/\s+/g, ' ')
-  
-  // 简单的SQL格式化：将关键字大写，添加换行和缩进
-  let formatted = cleaned
-    .replace(/\bSELECT\b/gi, '\nSELECT')
-    .replace(/\bFROM\b/gi, '\nFROM')
-    .replace(/\bWHERE\b/gi, '\nWHERE')
-    .replace(/\bLEFT JOIN\b/gi, '\nLEFT JOIN')
-    .replace(/\bRIGHT JOIN\b/gi, '\nRIGHT JOIN')
-    .replace(/\bINNER JOIN\b/gi, '\nINNER JOIN')
-    .replace(/\bJOIN\b/gi, '\nJOIN')
-    .replace(/\bON\b/gi, '\n  ON')
-    .replace(/\bAND\b/gi, '\n  AND')
-    .replace(/\bOR\b/gi, '\n  OR')
-    .replace(/\bORDER BY\b/gi, '\nORDER BY')
-    .replace(/\bGROUP BY\b/gi, '\nGROUP BY')
-    .replace(/\bHAVING\b/gi, '\nHAVING')
-    .replace(/\bLIMIT\b/gi, '\nLIMIT')
-    .replace(/\bUNION\b/gi, '\n\nUNION')
-    .replace(/\bUNION ALL\b/gi, '\n\nUNION ALL')
-  
-  // 处理逗号后的列，添加换行
-  formatted = formatted.replace(/,\s*([a-zA-Z_][a-zA-Z0-9_]*)/g, ',\n    $1')
-  
-  return formatted.trim()
+  return formatSQL(sql || '')
 }
 
 // 切换到SQL视图
@@ -1400,6 +1374,7 @@ onBeforeUnmount(() => {
   width: 100%;
   min-height: 100%;
   box-sizing: border-box;
+  text-align: left;
 }
 
 /* SQL内容区域滚动条 */

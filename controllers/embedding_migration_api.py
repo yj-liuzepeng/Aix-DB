@@ -1,5 +1,5 @@
 """
-Embedding 数据迁移 API
+数据迁移 API
 """
 import logging
 from sanic import Blueprint, Request
@@ -25,7 +25,7 @@ bp = Blueprint("embeddingMigration", url_prefix="/system/embedding-migration")
 
 @bp.get("/model-info")
 @openapi.summary("获取当前 embedding 模型信息")
-@openapi.tag("Embedding 数据迁移")
+@openapi.tag("数据迁移")
 @check_token
 @async_json_resp
 async def get_model_info(request: Request):
@@ -35,7 +35,7 @@ async def get_model_info(request: Request):
 
 @bp.post("/recalculate")
 @openapi.summary("重新计算 embedding")
-@openapi.tag("Embedding 数据迁移")
+@openapi.tag("数据迁移")
 @openapi.body({
     "application/json": {
         "schema": {
@@ -120,7 +120,7 @@ async def recalculate_embeddings(request: Request):
 
 @bp.post("/recalculate-sync")
 @openapi.summary("重新计算 embedding（同步方式，不推荐用于大量数据）")
-@openapi.tag("Embedding 数据迁移")
+@openapi.tag("数据迁移")
 @openapi.body({
     "application/json": {
         "schema": {

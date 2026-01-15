@@ -2,6 +2,7 @@
 import type { UploadFileInfo } from 'naive-ui'
 import { computed, onMounted, ref } from 'vue'
 import { fetch_datasource_list } from '@/api/datasource'
+import { fetch_model_list, set_default_model } from '@/api/aimodel'
 import FileUploadManager from '@/views/file/file-upload-manager.vue'
 
 const emit = defineEmits(['submit'])
@@ -11,6 +12,62 @@ const selectedMode = ref<{ label: string, value: string, icon: string, color: st
 const datasourceList = ref<any[]>([])
 const selectedDatasource = ref<any>(null)
 const showDatasourcePopover = ref(false)
+
+// LLM 模型列表（下拉选择）
+const llmModels = ref<any[]>([])
+const selectedLLMModelId = ref<number | null>(null)
+
+const llmModelOptions = computed(() =>
+  llmModels.value.map((m) => ({
+    label: m.name,
+    value: m.id,
+  })),
+)
+
+// Dropdown 组件需要的选项格式
+const llmModelDropdownOptions = computed(() =>
+  llmModels.value.map((m) => ({
+    label: () => m.name,
+    key: m.id,
+  })),
+)
+
+// 当前选中模型的名称
+const selectedLLMModelName = computed(() => {
+  if (!selectedLLMModelId.value) return ''
+  const model = llmModels.value.find((m) => m.id === selectedLLMModelId.value)
+  return model?.name || ''
+})
+
+const loadLLMModels = async () => {
+  try {
+    const res = await fetch_model_list(undefined, 1)
+    const list = Array.isArray(res?.data) ? res.data : Array.isArray(res) ? res : []
+    llmModels.value = list
+    if (list.length > 0) {
+      const defaultItem = list.find((m: any) => m.default_model)
+      const model = defaultItem || list[0]
+      if (model) {
+        selectedLLMModelId.value = model.id
+      }
+    }
+  } catch (e) {
+    console.error('加载大语言模型列表失败:', e)
+  }
+}
+
+// 修改默认大模型（适配 Dropdown 的 select 事件，参数是 key）
+const handleLLMModelChange = async (key: number | string) => {
+  const modelId = typeof key === 'string' ? parseInt(key) : key
+  selectedLLMModelId.value = modelId
+  try {
+    await set_default_model(modelId)
+    window.$ModalMessage?.success?.('默认模型已更新')
+  } catch (e) {
+    console.error('更新默认模型失败:', e)
+    window.$ModalMessage?.error?.('更新默认模型失败，请重试')
+  }
+}
 
 onMounted(async () => {
   try {
@@ -23,6 +80,9 @@ onMounted(async () => {
   catch (e) {
     console.error(e)
   }
+
+  // 加载大语言模型列表（用于顶部下拉选择）
+  await loadLLMModels()
 })
 
 const handleDatasourceSelect = (ds: any) => {
@@ -116,13 +176,80 @@ const bottomIcons = [
 
 <template>
   <div class="default-page-container">
+    <!-- 模型选择：固定在页面左上角，与对话页位置保持一致 -->
+    <div
+      v-if="llmModelDropdownOptions.length"
+      class="model-select-top-left"
+    >
+      <n-dropdown
+        :options="llmModelDropdownOptions"
+        placement="bottom-start"
+        @select="handleLLMModelChange"
+      >
+        <div class="model-dropdown-trigger">
+          <span class="model-dropdown-label">
+            {{ selectedLLMModelName || '选择大语言模型' }}
+          </span>
+          <div class="model-dropdown-icon i-hugeicons:arrow-down-01"></div>
+        </div>
+      </n-dropdown>
+    </div>
+
     <div class="content-wrapper">
       <!-- Title -->
       <div class="header-section">
         <div class="logo-wrapper">
-          <h1 class="page-title">
-            <span class="gradient-text">Aix</span>
-          </h1>
+          <div class="page-title">
+            <span
+              class="gradient-text"
+              style="background-image: linear-gradient(270deg, rgb(130, 45, 255) 0%, rgb(62, 69, 255) 20.8827%, rgb(60, 196, 250) 100%); background-clip: text; -webkit-text-fill-color: transparent;"
+            >A</span>
+            <span
+              class="gradient-text i-container"
+              style="background-image: linear-gradient(270deg, rgb(130, 45, 255) 0%, rgb(62, 69, 255) 20.8827%, rgb(60, 196, 250) 100%); background-clip: text; -webkit-text-fill-color: transparent;"
+            >
+              i
+              <svg
+                class="star-icon"
+                width="14"
+                height="14"
+                viewBox="0 0 16 16"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <defs>
+                  <linearGradient
+                    id="starGradient"
+                    x1="0%"
+                    y1="0%"
+                    x2="100%"
+                    y2="100%"
+                  >
+                    <stop
+                      offset="0%"
+                      stop-color="rgba(130,45,255,1)"
+                    />
+                    <stop
+                      offset="20.88%"
+                      stop-color="rgba(62,69,255,1)"
+                    />
+                    <stop
+                      offset="100%"
+                      stop-color="rgba(60,196,250,1)"
+                    />
+                  </linearGradient>
+                </defs>
+                <path
+                  d="M8 0L9.5 5.5L15 7L9.5 8.5L8 14L6.5 8.5L1 7L6.5 5.5L8 0Z"
+                  fill="url(#starGradient)"
+                />
+              </svg>
+            </span>
+            <span
+              class="gradient-text"
+              style="background-image: linear-gradient(270deg, rgb(130, 45, 255) 0%, rgb(62, 69, 255) 20.8827%, rgb(60, 196, 250) 100%); background-clip: text; -webkit-text-fill-color: transparent;"
+            >X</span>
+          </div>
         </div>
       </div>
 
@@ -291,6 +418,7 @@ const bottomIcons = [
   height: 100%;
   width: 100%;
   background-color: #fff;
+  position: relative; /* 仅用于定位左上角下拉框，不影响中间内容布局 */
 }
 
 .content-wrapper {
@@ -304,6 +432,14 @@ const bottomIcons = [
   top: -40px; /* Visual optical adjustment to move slightly up */
 }
 
+/* 模型选择下拉框：左上角位置，与对话页面保持一致 */
+.model-select-top-left {
+  position: absolute;
+  top: 12px;
+  left: 24px;
+  z-index: 10;
+}
+
 .header-section {
   display: flex;
   justify-content: center;
@@ -313,22 +449,71 @@ const bottomIcons = [
 }
 
 .page-title {
-  font-size: 64px;
-  font-weight: 800;
-  line-height: 1.1;
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  font-size: 48px;
+  font-weight: bold;
+  line-height: 1;
+  height: 68px;
   margin: 0;
-  letter-spacing: -0.04em;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  letter-spacing: normal;
+  font-family: Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
 }
 
-.gradient-text {
-  background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 50%, #db2777 100%); /* Electric Indigo -> Violet -> Pink */
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-  filter: drop-shadow(0 0 40px rgb(124 58 237 / 15%)); /* Soft glow */
+.i-container {
+  position: relative;
+  display: inline-block;
+}
+
+.star-icon {
+  position: absolute;
+  top: -16px;
+  left: 50%;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+/* 模型下拉框样式，使用 Naive UI Dropdown 风格 */
+.model-dropdown-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border-radius: 6px;
+  
+  &:hover {
+    background-color: rgba(0, 0, 0, 0.06);
+    
+    .model-dropdown-icon {
+      color: #6b7280;
+    }
+  }
+}
+
+.model-dropdown-label {
+  font-size: 15px;
+  font-weight: 500;
+  color: #1f2937;
+  line-height: 1.4;
+  letter-spacing: -0.01em;
+  font-family: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.model-dropdown-icon {
+  font-size: 14px;
+  color: #9ca3af;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 /* Input Card Styles matching chat.vue */

@@ -310,22 +310,23 @@ class Text2SqlAgent:
                 DataTypeEnum.BUS_DATA.value[0] if step_name == "data_render" else DataTypeEnum.ANSWER.value[0]
             )
 
-            # 根据环境变量决定是否发送非关键步骤的内容
-            # error_handler 是异常节点，必须发送错误信息给用户
-            # schema_inspector 需要向用户解释 BM25 分词和表筛选结果，也应在不展示思考过程时输出
-            # chart_generator 需要向用户展示最终选定的图表类型，也应在不展示思考过程时输出
-            should_send = self.show_thinking_process or step_name in [
-                "summarize",
-                "data_render",
-                "error_handler",
-                "schema_inspector",
-                "chart_generator",
-            ]
+            # 根据环境变量决定是否发送步骤的内容到前端
+            # 当 SHOW_THINKING_PROCESS 关闭时，只输出 summarize 步骤的内容到前端
+            # 当 SHOW_THINKING_PROCESS 开启时，输出所有步骤的内容到前端
+            if self.show_thinking_process:
+                # 开启思考过程时，发送所有步骤的内容
+                should_send = True
+            else:
+                # 关闭思考过程时，只发送 summarize 步骤的内容
+                should_send = step_name == "summarize"
 
             if should_send:
                 await self._send_response(response=response, content=content, data_type=data_type)
 
-                if data_type == DataTypeEnum.ANSWER.value[0]:
+                # 只有当 show_thinking_process 开启时，或者当前步骤是 summarize 时，才收集到 t02_answer_data
+                # 关闭思考过程时，只保存 summarize 步骤的内容到数据库
+                should_collect = self.show_thinking_process or step_name == "summarize"
+                if should_collect and data_type == DataTypeEnum.ANSWER.value[0]:
                     t02_answer_data.append(content)
 
             # 这里设置渲染数据
@@ -341,35 +342,54 @@ class Text2SqlAgent:
                 await asyncio.sleep(0)
 
         # 处理推荐问题：将推荐问题合并到已有的图表数据中发送到前端（在 content_map 之外处理）
+        # 要求：无论 SHOW_THINKING_PROCESS 是否开启，都要推送给前端，并保存在 t04_answer_data 中
         if step_name == "question_recommender":
             recommended_questions = step_value.get("recommended_questions", [])
-            logger.info(f"question_recommender 步骤: 获取到推荐问题数量: {len(recommended_questions) if recommended_questions else 0}, t04_answer_data: {t04_answer_data}")
+            logger.info(
+                f"question_recommender 步骤: 获取到推荐问题数量: "
+                f"{len(recommended_questions) if recommended_questions else 0}, "
+                f"t04_answer_data: {t04_answer_data}"
+            )
+
             if recommended_questions and isinstance(recommended_questions, list) and len(recommended_questions) > 0:
                 # 获取已有的图表数据，如果没有则创建新的数据结构
-                if t04_answer_data and "data" in t04_answer_data and isinstance(t04_answer_data["data"], dict) and t04_answer_data["data"]:
+                if (
+                    t04_answer_data
+                    and "data" in t04_answer_data
+                    and isinstance(t04_answer_data["data"], dict)
+                    and t04_answer_data["data"]
+                ):
                     # 将推荐问题添加到已有的图表数据中
                     t04_answer_data["data"]["recommended_questions"] = recommended_questions
-                    # 重新发送包含推荐问题的完整数据
-                    await self._send_response(
-                        response=response,
-                        content=t04_answer_data["data"],
-                        data_type=t04_answer_data.get("dataType", DataTypeEnum.BUS_DATA.value[0])
-                    )
-                    logger.info(f"已添加 {len(recommended_questions)} 个推荐问题到图表数据并发送到前端，完整数据: {t04_answer_data}")
+                    payload = t04_answer_data["data"]
+                    data_type = t04_answer_data.get("dataType", DataTypeEnum.BUS_DATA.value[0])
                 else:
-                    # 如果没有图表数据，单独发送推荐问题（这种情况不应该发生，因为 data_render 应该在 question_recommender 之前执行）
-                    logger.warning(f"question_recommender 步骤: t04_answer_data 为空或无效，t04_answer_data: {t04_answer_data}")
-                    recommended_questions_data = {
-                        "recommended_questions": recommended_questions
-                    }
-                    await self._send_response(
-                        response=response,
-                        content=recommended_questions_data,
-                        data_type=DataTypeEnum.BUS_DATA.value[0]
+                    # 如果没有图表数据，仅使用推荐问题构建数据结构
+                    logger.warning(
+                        f"question_recommender 步骤: t04_answer_data 为空或无效，"
+                        f"t04_answer_data: {t04_answer_data}"
                     )
-                    logger.info(f"已发送 {len(recommended_questions)} 个推荐问题到前端（无图表数据）: {recommended_questions[:2] if len(recommended_questions) > 2 else recommended_questions}")
+                    payload = {"recommended_questions": recommended_questions}
+                    data_type = DataTypeEnum.BUS_DATA.value[0]
+                    # 同步更新 t04_answer_data，确保会被保存到数据库
+                    t04_answer_data.clear()
+                    t04_answer_data.update({"data": payload, "dataType": data_type})
+
+                # 无论是否显示思考过程，都推送推荐问题数据到前端
+                await self._send_response(
+                    response=response,
+                    content=payload,
+                    data_type=data_type,
+                )
+                logger.info(
+                    f"已发送 {len(recommended_questions)} 个推荐问题到前端，"
+                    f"完整数据: {t04_answer_data}"
+                )
             else:
-                logger.warning(f"question_recommender 步骤: 推荐问题为空或格式错误，recommended_questions: {recommended_questions}")
+                logger.warning(
+                    f"question_recommender 步骤: 推荐问题为空或格式错误，"
+                    f"recommended_questions: {recommended_questions}"
+                )
 
     @staticmethod
     def _format_sql_execution_message(execution_result: Any) -> str:

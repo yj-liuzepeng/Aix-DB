@@ -3,6 +3,7 @@ import type { InputInst, UploadFileInfo } from 'naive-ui'
 // Import Cookies to clear token on logout
 import { UAParser } from 'ua-parser-js'
 import * as GlobalAPI from '@/api'
+import { fetch_model_list, set_default_model } from '@/api/aimodel'
 import { fetch_datasource_list } from '@/api/datasource'
 import { isMockDevelopment } from '@/config'
 import SideBar from '@/components/Navigation/sidebar.vue'
@@ -111,9 +112,84 @@ function newChat() {
 }
 
 /**
- * 默认大模型
+ * 默认大模型显示名称（从 t_ai_model 动态查询，用于页面显示）
+ * 约定：model_type = 1 表示大语言模型，default_model = true 表示默认模型
  */
-const defaultLLMTypeName = 'qwen2'
+const defaultLLMTypeName = ref('Qwen3-Max')
+
+/**
+ * 数据流转换模型类型（用于 MarkdownPreview 组件的数据流处理）
+ * 固定为 'qwen2'，因为这是数据流转换所需的类型标识符
+ */
+const defaultLLMTypeForStream = 'qwen2'
+
+// 大语言模型列表与当前选中模型（用于下拉选择）
+const llmModels = ref<any[]>([])
+const selectedLLMModelId = ref<number | null>(null)
+
+const llmModelOptions = computed(() =>
+  llmModels.value.map((m) => ({
+    label: m.name,
+    value: m.id,
+  })),
+)
+
+// Dropdown 组件需要的选项格式
+const llmModelDropdownOptions = computed(() =>
+  llmModels.value.map((m) => ({
+    label: () => m.name,
+    key: m.id,
+  })),
+)
+
+// 当前选中模型的名称
+const selectedLLMModelName = computed(() => {
+  if (!selectedLLMModelId.value) return ''
+  const model = llmModels.value.find((m) => m.id === selectedLLMModelId.value)
+  return model?.name || ''
+})
+
+// 查询所有大语言模型，并确定当前默认模型
+const loadLLMModels = async () => {
+  try {
+    // 1 = LLM，大语言模型
+    const res = await fetch_model_list(undefined, 1)
+    const list = Array.isArray(res?.data) ? res.data : Array.isArray(res) ? res : []
+    llmModels.value = list
+
+    if (list.length > 0) {
+      // 优先找 default_model = true 的
+      const defaultItem = list.find((m: any) => m.default_model)
+      const model = defaultItem || list[0]
+      if (model) {
+        selectedLLMModelId.value = model.id
+        if (model.name) {
+          defaultLLMTypeName.value = model.name
+        }
+      }
+    }
+  } catch (e) {
+    console.error('加载大语言模型列表失败:', e)
+    // 失败时保持初始占位名称，不打断页面
+  }
+}
+
+// 修改默认大模型（适配 Dropdown 的 select 事件，参数是 key）
+const handleLLMModelChange = async (key: number | string) => {
+  const modelId = typeof key === 'string' ? parseInt(key) : key
+  selectedLLMModelId.value = modelId
+  const target = llmModels.value.find((m: any) => m.id === modelId)
+  if (target?.name) {
+    defaultLLMTypeName.value = target.name
+  }
+  try {
+    await set_default_model(modelId)
+    window.$ModalMessage?.success?.('默认模型已更新')
+  } catch (e) {
+    console.error('更新默认模型失败:', e)
+    window.$ModalMessage?.error?.('更新默认模型失败，请重试')
+  }
+}
 const currentChatId = computed(() => {
   return route.params.chatId
 })
@@ -1199,6 +1275,9 @@ const handleHistoryClick = async (item: any) => {
   isInit.value = false
   isView.value = true
 
+  // 每次点击历史记录时，刷新一次大语言模型列表和当前默认模型
+  loadLLMModels()
+
   // 这里根据chat_id 过滤同一轮对话数据，使用分页加载
   await loadConversationHistory(item, true)
 
@@ -1397,8 +1476,26 @@ const handleHistoryClick = async (item: any) => {
                 ></div>
               </div>
 
-              <div class="model-info flex items-center gap-1.5 cursor-pointer">
-                <span class="text-[16px] font-medium text-[#111] model-name">Qwen3-Max</span>
+              <div class="model-info flex items-center gap-1.5">
+                <n-dropdown
+                  v-if="llmModelDropdownOptions.length"
+                  :options="llmModelDropdownOptions"
+                  placement="bottom-start"
+                  @select="handleLLMModelChange"
+                >
+                  <div class="model-dropdown-trigger">
+                    <span class="model-dropdown-label">
+                      {{ selectedLLMModelName || '选择大模型' }}
+                    </span>
+                    <div class="model-dropdown-icon i-hugeicons:arrow-down-01"></div>
+                  </div>
+                </n-dropdown>
+                <span
+                  v-if="!llmModelDropdownOptions.length"
+                  class="text-[16px] font-medium text-[#111] model-name"
+                >
+                  {{ defaultLLMTypeName }}
+                </span>
               </div>
             </div>
             <!--
@@ -1513,7 +1610,7 @@ const handleHistoryClick = async (item: any) => {
                 >
                   <MarkdownPreview
                     :reader="item.reader"
-                    :model="defaultLLMTypeName"
+                    :model="defaultLLMTypeForStream"
                     :is-init="isInit"
                     :is-view="isView"
                     :qa-type="`${item.qa_type}`"
@@ -1540,7 +1637,7 @@ const handleHistoryClick = async (item: any) => {
             <transition name="fade">
               <div
                 v-if="isView && isLoadingMoreConversationHistory"
-                class="flex justify-center items-center py-2 conversation-loading-indicator"
+                class="flex justify-center items-center py-2 conversation-loading-indicator conversation-loading-indicator--bottom"
               >
                 <div class="flex items-center gap-2 text-[#999] text-[13px]">
                   <div class="i-svg-spinners:dots-scale-middle text-14 text-[#7E6BF2]"></div>
@@ -1553,7 +1650,7 @@ const handleHistoryClick = async (item: any) => {
             <transition name="fade">
               <div
                 v-if="isView && isLoadingConversationHistory && conversationHistoryMinLoadedPage > 1"
-                class="flex justify-center items-center py-2 conversation-loading-indicator"
+                class="flex justify-center items-center py-2 conversation-loading-indicator conversation-loading-indicator--top"
               >
                 <div class="flex items-center gap-2 text-[#999] text-[13px]">
                   <div class="i-svg-spinners:dots-scale-middle text-14 text-[#7E6BF2]"></div>
@@ -1824,6 +1921,45 @@ const handleHistoryClick = async (item: any) => {
   font-family: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif !important;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/* 模型下拉框样式，使用 Naive UI Dropdown 风格 */
+.model-dropdown-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border-radius: 6px;
+  
+  &:hover {
+    background-color: rgba(0, 0, 0, 0.06);
+    
+    .model-dropdown-icon {
+      color: #6b7280;
+    }
+  }
+}
+
+.model-dropdown-label {
+  font-size: 15px;
+  font-weight: 500;
+  color: #1f2937;
+  line-height: 1.4;
+  letter-spacing: -0.01em;
+  font-family: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.model-dropdown-icon {
+  font-size: 14px;
+  color: #9ca3af;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .history-item-text {
@@ -2394,10 +2530,27 @@ const handleHistoryClick = async (item: any) => {
   }
 }
 
-/* 对话历史加载提示样式 - 轻量且平滑 */
+/* 对话历史加载提示样式 - 轻量且平滑，统一的基础动画样式 */
 .conversation-loading-indicator {
   animation: fadeIn 0.2s ease-in;
   will-change: opacity;
+}
+
+/* 底部“加载更多...”固定在对话区域底部居中显示 */
+.conversation-loading-indicator--bottom {
+  position: sticky;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  justify-content: center;
+  background: linear-gradient(to top, #fff 80%, rgba(255, 255, 255, 0)); // 与内容自然过渡
+}
+
+/* 顶部“加载更早的消息...”保持默认位置，仅做轻微背景衬托 */
+.conversation-loading-indicator--top {
+  width: 100%;
+  justify-content: center;
+  background: linear-gradient(to bottom, #fff 80%, rgba(255, 255, 255, 0));
 }
 
 @keyframes fadeIn {
