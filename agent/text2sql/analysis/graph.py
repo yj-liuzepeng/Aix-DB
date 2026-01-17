@@ -5,12 +5,16 @@ from langgraph.graph.state import CompiledStateGraph
 
 from agent.text2sql.analysis.data_render_antv import data_render_ant
 from agent.text2sql.analysis.llm_summarizer import summarize
+from agent.text2sql.analysis.parallel_collector import (
+    parallel_collect_after_sql_executor,
+)
+from agent.text2sql.analysis.early_recommender_helper import start_early_recommender
+from agent.text2sql.analysis.unified_collector import unified_collect
 from agent.text2sql.database.db_service import DatabaseService
 from agent.text2sql.sql.generator import sql_generate
 from agent.text2sql.permission.filter_injector import permission_filter_injector
 from agent.text2sql.chart.generator import chart_generator
 from agent.text2sql.datasource.selector import datasource_selector
-from agent.text2sql.question.recommender import question_recommender
 from agent.text2sql.state.agent_state import AgentState
 
 logger = logging.getLogger(__name__)
@@ -65,13 +69,15 @@ def create_graph(datasource_id: int = None):
     graph.add_node("datasource_selector", datasource_selector)
     graph.add_node("error_handler", handle_datasource_error)
     graph.add_node("schema_inspector", db_service.get_table_schema)
+    # 优化：早期启动推荐问题生成（在后台并行执行）
+    graph.add_node("early_recommender", start_early_recommender)
     graph.add_node("sql_generator", sql_generate)
     graph.add_node("permission_filter", permission_filter_injector)
     graph.add_node("sql_executor", db_service.execute_sql)
-    graph.add_node("chart_generator", chart_generator)
-    graph.add_node("data_render", data_render_ant)
-    graph.add_node("summarize", summarize)
-    graph.add_node("question_recommender", question_recommender)
+    # 优化：并行执行 chart_generator 和 summarize（如果推荐问题已提前启动，则不包含）
+    graph.add_node("parallel_collector", parallel_collect_after_sql_executor)
+    # 统一收集节点：按顺序收集 summarize → 图表数据 → 推荐问题
+    graph.add_node("unified_collector", unified_collect)
 
     # 入口：根据是否有 datasource_id 决定是否进入数据源选择节点
     # 如果已有 datasource_id，则直接进入 schema_inspector
@@ -89,18 +95,16 @@ def create_graph(datasource_id: int = None):
     graph.add_edge("error_handler", END)
     
     # 表关系补充已在 get_table_schema 中完成，不再需要单独的 table_relationship 节点
-    graph.add_edge("schema_inspector", "sql_generator")
+    # 优化：在 schema_inspector 之后立即启动推荐问题生成（不阻塞主流程）
+    graph.add_edge("schema_inspector", "early_recommender")
+    graph.add_edge("early_recommender", "sql_generator")
     graph.add_edge("sql_generator", "permission_filter")
     graph.add_edge("permission_filter", "sql_executor")
-    graph.add_edge("sql_executor", "chart_generator")
-    graph.add_edge("chart_generator", "summarize")
-
-    graph.add_conditional_edges(
-        "summarize", data_render_condition, {"data_render": "data_render"}
-    )
-
-    graph.add_edge("data_render", "question_recommender")
-    graph.add_edge("question_recommender", END)
+    # 优化：并行执行 chart_generator 和 summarize（推荐问题已在后台执行）
+    graph.add_edge("sql_executor", "parallel_collector")
+    # 统一收集：按顺序收集 summarize → 图表数据 → 推荐问题
+    graph.add_edge("parallel_collector", "unified_collector")
+    graph.add_edge("unified_collector", END)
 
     graph_compiled: CompiledStateGraph = graph.compile()
     return graph_compiled

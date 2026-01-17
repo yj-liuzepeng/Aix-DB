@@ -19,7 +19,7 @@ from services.datasource_service import DatasourceService
 logger = logging.getLogger(__name__)
 
 
-async def question_recommender(state: AgentState) -> AgentState:
+def question_recommender(state: AgentState) -> AgentState:
     """
     推荐问题生成节点
     1. 获取当前数据源的 schema

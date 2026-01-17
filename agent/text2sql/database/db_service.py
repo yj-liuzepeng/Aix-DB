@@ -14,6 +14,7 @@ import re
 import time
 from typing import Dict, List, Tuple, Optional
 from threading import Lock
+from concurrent.futures import ThreadPoolExecutor
 
 import faiss
 import jieba
@@ -962,11 +963,19 @@ class DatabaseService:
             # 初始化向量索引
             self._initialize_vector_index(all_table_info)
 
-            # 混合检索
-            logger.info("🔍 开始混合检索：BM25 + 向量检索")
-            bm25_top_indices = self._retrieve_by_bm25(all_table_info, user_query)
+            # 混合检索 - 并行执行 BM25 和向量检索以提高性能
+            logger.info("🔍 开始混合检索：BM25 + 向量检索（并行执行）")
+            
+            # 使用线程池并行执行 BM25 和向量检索
+            with ThreadPoolExecutor(max_workers=2) as executor:
+                bm25_future = executor.submit(self._retrieve_by_bm25, all_table_info, user_query)
+                vector_future = executor.submit(self._retrieve_by_vector, user_query, 20)
+                
+                # 等待两个任务完成
+                bm25_top_indices = bm25_future.result()
+                vector_top_indices = vector_future.result()
+            
             logger.info(f"📊 BM25检索返回 {len(bm25_top_indices)} 个结果")
-            vector_top_indices = self._retrieve_by_vector(user_query, top_k=20)
             logger.info(f"🔗 向量检索返回 {len(vector_top_indices)} 个结果")
 
             # 过滤：仅保留同时在 BM25 前 50 和向量结果中的表

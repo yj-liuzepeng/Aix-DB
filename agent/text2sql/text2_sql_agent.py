@@ -21,11 +21,14 @@ logger = logging.getLogger(__name__)
 STEP_NAME_MAP = {
     "schema_inspector": "表结构检索...",
     "table_relationship": "表关系分析...",
+    "early_recommender": "推荐问题生成...",
     "sql_generator": "SQL生成...",
     "permission_filter": "权限过滤...",
     "sql_executor": "SQL执行...",
     "chart_generator": "图表配置...",
     "summarize": "结果总结...",
+    "parallel_collector": "并行处理（图表配置与结果总结）...",
+    "unified_collector": "统一收集（结果总结→图表数据→推荐问题）...",
     "data_render": "数据渲染...",
     "question_recommender": "推荐问题...",
     "datasource_selector": "数据源选择...",
@@ -290,14 +293,16 @@ class Text2SqlAgent:
                 if current_step is not None and current_step not in ["summarize", "data_render", "error_handler"]:
                     await self._close_current_step(response, t02_answer_data)
 
-                # 打开新的步骤 (除了 summarize、data_render 和 error_handler) think_html 标签里面添加open属性控制思考过程是否默认展开显示
+                # 打开新的步骤 (除了 summarize、data_render、unified_collector 和 error_handler) think_html 标签里面添加open属性控制思考过程是否默认展开显示
                 # error_handler 是异常节点，直接显示错误信息，不需要显示思考过程标签
-                # datasource_selector 和 question_recommender 也不展示思考过程
+                # datasource_selector、early_recommender、unified_collector 也不展示思考过程
                 if new_step not in [
                     "summarize",
                     "data_render",
                     "error_handler",
                     "datasource_selector",
+                    "early_recommender",
+                    "unified_collector",
                     "question_recommender",
                 ]:
                     think_html = f"""<details style="color:gray;background-color: #f8f8f8;padding: 2px;border-radius: 
@@ -359,8 +364,10 @@ class Text2SqlAgent:
             "sql_executor": lambda: self._format_sql_execution_message(step_value.get("execution_result")),
             # 图表生成节点：输出最终选定的图表类型
             "chart_generator": lambda: self._format_chart_type_message(step_value),
-            "summarize": lambda: step_value["report_summary"],
+            "summarize": lambda: step_value.get("report_summary", ""),
             "data_render": lambda: step_value.get("render_data", {}) if step_value.get("render_data") else {},  # 返回对象，不是 JSON 字符串
+            # 统一收集节点：不在 content_map 中处理，由 _process_unified_collector 专门处理
+            # "unified_collector": lambda: self._format_unified_collector_message(step_value),
         }
 
         if step_name in content_map:
@@ -375,9 +382,10 @@ class Text2SqlAgent:
             # 根据环境变量决定是否发送步骤的内容到前端
             # 当 SHOW_THINKING_PROCESS 关闭时，只输出 summarize 步骤的内容到前端
             # 当 SHOW_THINKING_PROCESS 开启时，输出所有步骤的内容到前端
+            # unified_collector 节点由专门的 _process_unified_collector 处理，不在这里发送格式化消息
             if self.show_thinking_process:
-                # 开启思考过程时，发送所有步骤的内容
-                should_send = True
+                # 开启思考过程时，发送所有步骤的内容（除了 unified_collector）
+                should_send = step_name != "unified_collector"
             else:
                 # 关闭思考过程时，只发送 summarize 步骤的内容
                 should_send = step_name == "summarize"
@@ -403,8 +411,17 @@ class Text2SqlAgent:
                     await response.flush()
                 await asyncio.sleep(0)
 
+        # 处理统一收集节点：按顺序推送 summarize → 图表数据 → 推荐问题
+        # 注意：unified_collector 节点不在 content_map 中处理，避免发送格式化消息到前端
+        if step_name == "unified_collector":
+            await self._process_unified_collector(
+                response, step_value, t02_answer_data, t04_answer_data
+            )
+            # 处理完 unified_collector 后直接返回，不再通过 content_map 发送内容
+            return
+        
         # 处理推荐问题：将推荐问题合并到已有的图表数据中发送到前端（在 content_map 之外处理）
-        # 要求：无论 SHOW_THINKING_PROCESS 是否开启，都要推送给前端，并保存在 t04_answer_data 中
+        # 注意：如果使用了 unified_collector，这个分支可能不会执行
         if step_name == "question_recommender":
             recommended_questions = step_value.get("recommended_questions", [])
             logger.info(
@@ -452,6 +469,95 @@ class Text2SqlAgent:
                     f"question_recommender 步骤: 推荐问题为空或格式错误，"
                     f"recommended_questions: {recommended_questions}"
                 )
+
+    async def _process_unified_collector(
+        self,
+        response,
+        step_value: Dict[str, Any],
+        t02_answer_data: list,
+        t04_answer_data: Dict[str, Any],
+    ) -> None:
+        """
+        处理统一收集节点：按顺序推送 summarize → 图表数据 → 推荐问题
+        
+        要求：
+        1. 首先推送 summarize（文本总结）
+        2. 然后推送图表数据（render_data）
+        3. 最后推送推荐问题（recommended_questions）
+        """
+        logger.info("📦 开始处理统一收集节点")
+        
+        # 1. 推送 summarize（结果总结）
+        report_summary = step_value.get("report_summary")
+        if report_summary:
+            logger.info("📤 推送 summarize（结果总结）")
+            await self._send_response(
+                response=response,
+                content=report_summary,
+                data_type=DataTypeEnum.ANSWER.value[0],
+            )
+            # 收集到 t02_answer_data
+            if not self.show_thinking_process or True:  # 总是收集 summarize
+                t02_answer_data.append(report_summary)
+        
+        # 2. 推送图表数据（render_data）
+        render_data = step_value.get("render_data", {})
+        if render_data:
+            logger.info("📤 推送图表数据")
+            # 更新 t04_answer_data
+            t04_answer_data.clear()
+            t04_answer_data.update({"data": render_data, "dataType": DataTypeEnum.BUS_DATA.value[0]})
+            
+            # 发送图表数据
+            await self._send_response(
+                response=response,
+                content=render_data,
+                data_type=DataTypeEnum.BUS_DATA.value[0],
+            )
+        
+        # 3. 推送推荐问题（recommended_questions）
+        recommended_questions = step_value.get("recommended_questions", [])
+        if recommended_questions and isinstance(recommended_questions, list) and len(recommended_questions) > 0:
+            logger.info(f"📤 推送推荐问题，数量: {len(recommended_questions)}")
+            
+            # 将推荐问题添加到已有的图表数据中
+            if t04_answer_data and "data" in t04_answer_data and isinstance(t04_answer_data["data"], dict):
+                t04_answer_data["data"]["recommended_questions"] = recommended_questions
+                payload = t04_answer_data["data"]
+                data_type = t04_answer_data.get("dataType", DataTypeEnum.BUS_DATA.value[0])
+            else:
+                # 如果没有图表数据，仅使用推荐问题构建数据结构
+                payload = {"recommended_questions": recommended_questions}
+                data_type = DataTypeEnum.BUS_DATA.value[0]
+                t04_answer_data.clear()
+                t04_answer_data.update({"data": payload, "dataType": data_type})
+            
+            # 发送推荐问题
+            await self._send_response(
+                response=response,
+                content=payload,
+                data_type=data_type,
+            )
+            logger.info(f"✅ 已发送 {len(recommended_questions)} 个推荐问题到前端")
+        else:
+            logger.warning(f"⚠️ 推荐问题为空或格式错误: {recommended_questions}")
+        
+        logger.info("✅ 统一收集节点处理完成")
+
+    @staticmethod
+    def _format_unified_collector_message(step_value: Dict[str, Any]) -> str:
+        """
+        格式化统一收集节点的消息（用于日志或调试）
+        """
+        parts = []
+        if step_value.get("report_summary"):
+            parts.append("✅ 结果总结已生成")
+        if step_value.get("render_data"):
+            parts.append("✅ 图表数据已生成")
+        if step_value.get("recommended_questions"):
+            count = len(step_value.get("recommended_questions", []))
+            parts.append(f"✅ 推荐问题已生成（{count} 个）")
+        return " | ".join(parts) if parts else "统一收集完成"
 
     @staticmethod
     def _format_sql_execution_message(execution_result: Any) -> str:
