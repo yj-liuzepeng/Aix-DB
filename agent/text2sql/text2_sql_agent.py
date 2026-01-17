@@ -239,21 +239,21 @@ class Text2SqlAgent:
         # 处理具体步骤内容
         if step_value:
             await self._process_step_content(response, langgraph_step, step_value, t02_answer_data, t04_answer_data)
-            
-            # 步骤内容处理完成后，发送完成信息（如果是最后一个步骤，确保发送完成信息）
-            if langgraph_step in self.step_progress_ids:
-                progress_id = self.step_progress_ids.get(langgraph_step)
-                if progress_id:
-                    step_name_cn = STEP_NAME_MAP.get(langgraph_step, langgraph_step)
-                    await self._send_step_progress(
-                        response=response,
-                        step=langgraph_step,
-                        step_name=step_name_cn,
-                        status="complete",
-                        progress_id=progress_id,
-                    )
-                    # 清理已完成的步骤 progressId
-                    del self.step_progress_ids[langgraph_step]
+        
+        # 所有步骤都发送完成信息（无论是否有 step_value）
+        if langgraph_step in self.step_progress_ids:
+            progress_id = self.step_progress_ids.get(langgraph_step)
+            if progress_id:
+                step_name_cn = STEP_NAME_MAP.get(langgraph_step, langgraph_step)
+                await self._send_step_progress(
+                    response=response,
+                    step=langgraph_step,
+                    step_name=step_name_cn,
+                    status="complete",
+                    progress_id=progress_id,
+                )
+                # 清理已完成的步骤 progressId
+                del self.step_progress_ids[langgraph_step]
 
         return current_step, t02_answer_data
 

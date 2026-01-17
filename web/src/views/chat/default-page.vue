@@ -5,6 +5,10 @@ import { fetch_datasource_list } from '@/api/datasource'
 import { fetch_model_list, set_default_model } from '@/api/aimodel'
 import FileUploadManager from '@/views/file/file-upload-manager.vue'
 
+const props = defineProps<{
+  collapsed?: boolean
+}>()
+
 const emit = defineEmits(['submit'])
 
 const inputValue = ref('')
@@ -235,8 +239,9 @@ const bottomIcons = [
 <template>
   <div class="default-page-container">
     <!-- 模型选择：固定在页面左上角，与对话页位置保持一致 -->
+    <!-- 当侧边栏折叠时，隐藏此处的模型选择器，因为 top-header 已经显示了 -->
     <div
-      v-if="llmModelDropdownOptions.length"
+      v-if="llmModelDropdownOptions.length && !props.collapsed"
       class="model-select-top-left"
     >
       <n-dropdown

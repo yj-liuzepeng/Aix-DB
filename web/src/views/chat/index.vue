@@ -1834,7 +1834,10 @@ const handleHistoryClick = async (item: any) => {
                 key="default-page"
                 class="h-full"
               >
-                <DefaultPage @submit="handleSubmitFromDefaultPage" />
+                <DefaultPage
+                  :collapsed="collapsed"
+                  @submit="handleSubmitFromDefaultPage"
+                />
               </div>
 
               <div
