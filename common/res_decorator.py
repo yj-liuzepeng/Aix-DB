@@ -2,8 +2,11 @@ import json
 import logging
 import traceback
 from datetime import date, datetime
+from decimal import Decimal
 from functools import wraps
 
+import numpy as np
+from pydantic import BaseModel
 from sanic import response
 
 from common.exception import MyException
@@ -12,7 +15,7 @@ from constants.code_enum import SysCodeEnum
 
 class CustomJSONEncoder(json.JSONEncoder):
     """
-    自定义的 JSON 编码器，用于处理日期类型
+    自定义的 JSON 编码器，用于处理日期类型、numpy 数组等
     """
 
     def default(self, obj):
@@ -24,9 +27,23 @@ class CustomJSONEncoder(json.JSONEncoder):
         if isinstance(obj, date):
             # 处理 date 类型
             return obj.strftime("%Y-%m-%d")
+        elif isinstance(obj, Decimal):
+            # 将 Decimal 转换为 float 或字符串
+            return float(obj)  # 或者 str(obj) 保留精度
         elif isinstance(obj, datetime):
             # 处理 datetime 类型
             return obj.strftime("%Y-%m-%d %H:%M:%S")
+        elif isinstance(obj, BaseModel):
+            # 处理 Pydantic 模型
+            return obj.model_dump()
+        elif isinstance(obj, (np.ndarray, np.generic)):
+            # 处理 numpy 数组和标量
+            # 对于 embedding 字段，通常不需要返回给前端，返回 None
+            # 如果需要返回，可以转换为列表：return obj.tolist()
+            return None
+        elif hasattr(obj, 'tolist'):
+            # 处理其他可以转换为列表的对象（如 numpy 数组）
+            return obj.tolist()
         return super().default(obj)
 
 
@@ -64,7 +81,9 @@ def async_json_resp(func):
             }
             res = response.json(body, dumps=CustomJSONEncoder().encode)
 
-            logging.info(f"Request Path: {path},Method: {method}, Params: {params}, JSON Body: {json_body}, Response: {body}")
+            logging.info(
+                f"Request Path: {path},Method: {method}, Params: {params}, JSON Body: {json_body}, Response: {body}"
+            )
 
             return res
 
@@ -77,7 +96,9 @@ def async_json_resp(func):
 
             res = response.json(body, dumps=CustomJSONEncoder().encode)
 
-            logging.info(f"Request Path: {path}, Method: {method},Params: {params}, JSON Body: {json_body}, Response: {body}")
+            logging.info(
+                f"Request Path: {path}, Method: {method},Params: {params}, JSON Body: {json_body}, Response: {body}"
+            )
             return res
 
         except Exception as e:
@@ -88,7 +109,9 @@ def async_json_resp(func):
             }
             res = response.json(body, dumps=CustomJSONEncoder().encode)
 
-            logging.info(f"Request Path: {path}, Method: {method},Params: {params}, JSON Body: {json_body}, Response: {body}")
+            logging.info(
+                f"Request Path: {path}, Method: {method},Params: {params}, JSON Body: {json_body}, Response: {body}"
+            )
 
             traceback.print_exception(e)
             return res

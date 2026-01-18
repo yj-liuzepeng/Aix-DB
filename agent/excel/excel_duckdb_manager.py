@@ -158,7 +158,7 @@ class ExcelDuckDBManager:
                 registered_tables[table_name] = sheet_info
                 self._registered_tables[full_table_name] = sheet_info
 
-                logger.info(f"成功注册表: {full_table_name} ({row_count} 行, {column_count} 列)")
+                logger.debug(f"  注册表: {full_table_name} ({row_count} 行, {column_count} 列)")
 
             except Exception as e:
                 logger.error(f"注册表 '{sheet_name}' 失败: {str(e)}")
@@ -213,7 +213,7 @@ class ExcelDuckDBManager:
             # 记录 catalog 信息
             self._registered_catalogs[catalog_name] = file_path
             logger.info(
-                f"成功注册Excel文件 '{file_name}' 到 catalog '{catalog_name}'，共 {len(registered_tables)} 个表"
+                f"成功注册Excel文件: {file_name} -> catalog '{catalog_name}' ({len(registered_tables)} 个表)"
             )
 
         except Exception as e:
@@ -253,7 +253,7 @@ class ExcelDuckDBManager:
 
             # 记录 catalog 信息
             self._registered_catalogs[catalog_name] = file_path
-            logger.info(f"成功注册CSV文件 '{file_name}' 到 catalog '{catalog_name}'，共 {len(registered_tables)} 个表")
+            logger.info(f"成功注册CSV文件: {file_name} -> catalog '{catalog_name}' ({len(registered_tables)} 个表)")
 
         except Exception as e:
             logger.error(f"注册CSV文件 '{file_name}' 失败: {str(e)}")
@@ -261,6 +261,209 @@ class ExcelDuckDBManager:
             raise
 
         return catalog_name, registered_tables
+
+    def _extract_table_names_from_sql(self, sql: str) -> List[str]:
+        """
+        从SQL语句中提取表名
+        
+        :param sql: SQL查询语句
+        :return: 表名列表（格式：catalog.table 或 table）
+        """
+        import re
+        # 匹配 "catalog"."table" 或 "table" 格式的表名
+        # 支持 FROM, JOIN, UPDATE, INSERT INTO 等语句
+        pattern = r'["\']([^"\']+)["\']\s*\.\s*["\']([^"\']+)["\']|FROM\s+["\']([^"\']+)["\']|JOIN\s+["\']([^"\']+)["\']'
+        matches = re.findall(pattern, sql, re.IGNORECASE)
+        
+        table_names = []
+        for match in matches:
+            if match[0] and match[1]:  # catalog.table 格式
+                table_names.append(f'"{match[0]}"."{match[1]}"')
+            elif match[2]:  # FROM 后的表名
+                table_names.append(f'"{match[2]}"')
+            elif match[3]:  # JOIN 后的表名
+                table_names.append(f'"{match[3]}"')
+        
+        # 去重
+        return list(set(table_names))
+    
+    def _check_table_exists(self, table_name: str) -> bool:
+        """
+        检查表是否存在
+        
+        :param table_name: 表名（格式："catalog"."table" 或 "table"）
+        :return: 表是否存在
+        """
+        conn = self._get_connection()
+        try:
+            # 尝试直接查询表，如果失败则表不存在
+            # 使用LIMIT 0来避免实际读取数据，只检查表是否存在
+            test_sql = f'SELECT 1 FROM {table_name} LIMIT 0'
+            try:
+                conn.execute(test_sql)
+                return True
+            except Exception as e:
+                error_msg = str(e).lower()
+                if "does not exist" in error_msg or "table with name" in error_msg:
+                    return False
+                # 其他错误也认为表不存在
+                return False
+        except Exception as e:
+            logger.debug(f"检查表是否存在时出错: {str(e)}")
+            return False
+    
+    def _fix_sql_table_names(self, sql: str) -> str:
+        """
+        修复SQL中的表名，将不存在的表名映射到已注册的表名
+        
+        :param sql: 原始SQL语句
+        :return: 修复后的SQL语句
+        """
+        # 获取所有已注册的表
+        registered_tables = self.get_registered_tables()
+        if not registered_tables:
+            logger.warning("没有已注册的表，无法修复SQL表名")
+            return sql
+        
+        import re
+        
+        # 辅助函数：根据catalog和table名找到匹配的注册表名
+        def find_matching_table(catalog_part: str, table_part: str) -> str:
+            """
+            根据catalog和table名找到匹配的注册表名
+            :param catalog_part: catalog名称
+            :param table_part: table名称
+            :return: 匹配的完整表名，如果找不到则返回None
+            """
+            full_match = f'"{catalog_part}"."{table_part}"'
+            
+            # 检查这个表是否存在
+            if self._check_table_exists(full_match):
+                logger.debug(f"表 {full_match} 存在，无需修复")
+                return full_match
+            
+            # 尝试找到匹配的表
+            # 1. 先尝试精确匹配 registered_full_name
+            for registered_full_name, sheet_info in registered_tables.items():
+                if registered_full_name == full_match:
+                    logger.debug(f"  精确匹配: {full_match}")
+                    return registered_full_name
+            
+            # 2. 尝试匹配表名（table_name），忽略catalog
+            for registered_full_name, sheet_info in registered_tables.items():
+                if sheet_info.table_name == table_part:
+                    logger.debug(f"  通过表名匹配: {table_part} -> {registered_full_name}")
+                    return registered_full_name
+            
+            # 3. 尝试匹配sheet_name
+            for registered_full_name, sheet_info in registered_tables.items():
+                if sheet_info.sheet_name == table_part:
+                    logger.debug(f"  通过sheet名匹配: {table_part} -> {registered_full_name}")
+                    return registered_full_name
+            
+            # 4. 尝试匹配catalog_name（如果catalog部分包含已注册的catalog）
+            for registered_full_name, sheet_info in registered_tables.items():
+                if sheet_info.catalog_name == catalog_part:
+                    logger.debug(f"  通过catalog名匹配: {catalog_part} -> {registered_full_name}")
+                    return registered_full_name
+            
+            # 5. 如果catalog包含chat_id前缀（如 chat_id__catalog），尝试去掉前缀后匹配
+            if "__" in catalog_part:
+                catalog_without_prefix = catalog_part.split("__", 1)[-1]
+                for registered_full_name, sheet_info in registered_tables.items():
+                    if sheet_info.catalog_name == catalog_without_prefix and sheet_info.table_name == table_part:
+                        logger.debug(f"  通过去掉chat_id前缀匹配: {catalog_part} -> {registered_full_name}")
+                        return registered_full_name
+            
+            # 6. 如果只有一个表，直接使用它
+            if len(registered_tables) == 1:
+                registered_full_name = list(registered_tables.keys())[0]
+                logger.debug(f"  只有一个表，使用: {registered_full_name}")
+                return registered_full_name
+            
+            # 如果都找不到，返回None
+            logger.debug(f"  无法匹配表名: {full_match}")
+            logger.debug(f"  可用表列表: {list(registered_tables.keys())}")
+            return None
+        
+        # 匹配 "catalog"."table" 格式的表名
+        def replace_table_name(match):
+            catalog_part = match.group(1).strip('"\'')
+            table_part = match.group(2).strip('"\'')
+            full_match = f'"{catalog_part}"."{table_part}"'
+            
+            matched_table = find_matching_table(catalog_part, table_part)
+            if matched_table and matched_table != full_match:
+                logger.debug(f"  修复表名: {full_match} -> {matched_table}")
+            return matched_table if matched_table else full_match
+        
+        # 先处理错误的表名格式：整个字符串作为一个表名（如 "chat_id__catalog.table"）
+        # 这种格式的点号在引号内，需要先处理
+        def replace_wrong_format_table(match):
+            keyword = match.group(1)  # FROM, JOIN等关键字
+            full_table_name = match.group(2).strip('"\'')
+            
+            # 如果表名包含 "."，可能是 catalog.table 格式（点号在引号内）
+            if "." in full_table_name:
+                # 尝试分割：catalog.table -> catalog, table
+                parts = full_table_name.split(".", 1)
+                if len(parts) == 2:
+                    catalog_part = parts[0]
+                    table_name = parts[1]
+                    
+                    # 如果catalog包含 "__"，去掉chat_id前缀
+                    if "__" in catalog_part:
+                        catalog_name = catalog_part.split("__", 1)[-1]
+                    else:
+                        catalog_name = catalog_part
+                    
+                    # 使用find_matching_table函数查找匹配的表（先尝试去掉前缀）
+                    matched_table = find_matching_table(catalog_name, table_name)
+                    if matched_table:
+                        logger.debug(f"  修复错误格式表名（去掉chat_id前缀）: {full_table_name} -> {matched_table}")
+                        return f"{keyword} {matched_table}"
+                    
+                    # 如果catalog包含chat_id前缀，也尝试使用完整的catalog_part匹配
+                    if "__" in catalog_part:
+                        matched_table = find_matching_table(catalog_part, table_name)
+                        if matched_table:
+                            logger.debug(f"  修复错误格式表名（使用完整catalog）: {full_table_name} -> {matched_table}")
+                            return f"{keyword} {matched_table}"
+                        
+                        # 如果还是找不到，尝试只匹配table_name
+                        for registered_full_name, sheet_info in registered_tables.items():
+                            if sheet_info.table_name == table_name:
+                                logger.debug(f"  修复错误格式表名（忽略catalog）: {full_table_name} -> {registered_full_name}")
+                                return f"{keyword} {registered_full_name}"
+            
+            # 如果无法修复，返回原始
+            return match.group(0)
+        
+        # 匹配引号内包含点号的表名（可能是错误的格式）
+        # 只匹配FROM/JOIN等关键字后的表名
+        # 表名后面可能是：表别名（带或不带引号）、ON、WHERE、GROUP BY等关键字、逗号、或结束
+        # 使用更宽松的前瞻断言，允许表名后面有任何内容（包括表别名、关键字等）
+        wrong_format_pattern = r'(?i)\b(FROM|JOIN|UPDATE|INSERT\s+INTO)\s+["\']([^"\']*\.[^"\']+)["\']'
+        fixed_sql = re.sub(wrong_format_pattern, replace_wrong_format_table, sql)
+        
+        # 替换 "catalog"."table" 格式的表名（点号在引号外）
+        # 只匹配FROM/JOIN等关键字后的表名
+        def replace_table_name_with_keyword(match):
+            keyword = match.group(1)  # FROM, JOIN等关键字
+            catalog_part = match.group(2).strip('"\'')
+            table_part = match.group(3).strip('"\'')
+            
+            matched_table = find_matching_table(catalog_part, table_part)
+            if matched_table:
+                return f"{keyword} {matched_table}"
+            else:
+                return match.group(0)
+        
+        # 使用更宽松的模式，不限制表名后面的内容
+        pattern = r'(?i)\b(FROM|JOIN|UPDATE|INSERT\s+INTO)\s+["\']([^"\']+)["\']\s*\.\s*["\']([^"\']+)["\']'
+        fixed_sql = re.sub(pattern, replace_table_name_with_keyword, fixed_sql)
+        
+        return fixed_sql
 
     def execute_sql(self, sql: str) -> Tuple[List[str], List[Dict]]:
         """
@@ -272,8 +475,58 @@ class ExcelDuckDBManager:
         conn = self._get_connection()
 
         try:
-            logger.info(f"执行SQL查询: {sql}")
-            cursor = conn.execute(sql)
+            logger.info(f"执行SQL查询: {sql[:200]}{'...' if len(sql) > 200 else ''}")
+            
+            # 尝试执行SQL
+            try:
+                cursor = conn.execute(sql)
+            except Exception as first_error:
+                # 如果执行失败，尝试修复表名
+                error_msg = str(first_error)
+                # 只对表不存在的错误进行修复，其他语法错误直接抛出
+                if "does not exist" in error_msg or "Table with name" in error_msg:
+                    # 提取表名信息
+                    table_match = None
+                    if "Table with name" in error_msg:
+                        import re
+                        match = re.search(r'Table with name ([^\s!]+)', error_msg)
+                        if match:
+                            table_match = match.group(1)
+                    
+                    logger.warning(f"检测到表不存在错误，尝试自动修复表名")
+                    if table_match:
+                        logger.debug(f"  问题表名: {table_match}")
+                    
+                    # 显示已注册的表信息
+                    registered_tables = self.get_registered_tables()
+                    if registered_tables:
+                        logger.debug(f"  已注册的表数量: {len(registered_tables)}")
+                        logger.debug(f"  已注册的表: {list(registered_tables.keys())[:5]}")
+                    
+                    try:
+                        fixed_sql = self._fix_sql_table_names(sql)
+                        if fixed_sql != sql:
+                            logger.info(f"表名修复成功")
+                            logger.debug(f"  修复前: {sql[:150]}{'...' if len(sql) > 150 else ''}")
+                            logger.debug(f"  修复后: {fixed_sql[:150]}{'...' if len(fixed_sql) > 150 else ''}")
+                            cursor = conn.execute(fixed_sql)
+                        else:
+                            logger.warning(f"无法修复表名，SQL未发生变化")
+                            raise first_error
+                    except Exception as fix_error:
+                        # 如果修复后的SQL执行失败，记录错误并抛出原始错误
+                        fix_error_msg = str(fix_error)
+                        logger.error(f"修复后的SQL执行仍然失败")
+                        if "does not exist" in fix_error_msg or "Table with name" in fix_error_msg:
+                            logger.error(f"  错误原因: 表仍然不存在")
+                        else:
+                            logger.error(f"  错误原因: {fix_error_msg[:200]}")
+                        logger.debug(f"  修复后的SQL: {fixed_sql[:200]}{'...' if len(fixed_sql) > 200 else ''}")
+                        raise first_error
+                else:
+                    # 其他错误（如语法错误）直接抛出，不进行修复
+                    logger.debug(f"SQL执行失败（非表不存在错误），直接抛出")
+                    raise first_error
 
             # 获取列名称和查询结果的数据行
             columns = [description[0] for description in cursor.description]
@@ -282,11 +535,27 @@ class ExcelDuckDBManager:
             # 构建结果字典
             result = [dict(zip(columns, row)) for row in rows]
 
-            logger.info(f"查询执行成功: 返回 {len(result)} 行, {len(columns)} 列")
+            logger.info(f"SQL查询执行成功: 返回 {len(result)} 行数据, {len(columns)} 列")
             return columns, result
 
         except Exception as e:
-            logger.error(f"SQL查询执行失败: {str(e)}")
+            error_msg = str(e)
+            # 提取关键错误信息
+            if "does not exist" in error_msg or "Table with name" in error_msg:
+                import re
+                match = re.search(r'Table with name ([^\s!]+)', error_msg)
+                if match:
+                    table_name = match.group(1)
+                    logger.error(f"SQL查询失败: 表 '{table_name}' 不存在")
+                    registered_tables = self.get_registered_tables()
+                    if registered_tables:
+                        logger.error(f"  可用表列表: {list(registered_tables.keys())}")
+                    else:
+                        logger.error(f"  当前没有已注册的表，请确保文件已正确解析")
+                else:
+                    logger.error(f"SQL查询失败: {error_msg[:200]}")
+            else:
+                logger.error(f"SQL查询失败: {error_msg[:200]}")
             raise
 
     def get_registered_catalogs(self) -> Dict[str, str]:
@@ -329,6 +598,36 @@ class ExcelDuckDBManager:
             self._connection.close()
             self._connection = None
             logger.info("DuckDB 连接已关闭")
+
+    def clear_registered_tables(self):
+        """
+        清理已注册的表（删除DuckDB中的表，但保持连接）
+        用于重新执行时清理旧表
+        """
+        if not self._registered_tables:
+            logger.debug("没有已注册的表需要清理")
+            return
+        
+        try:
+            conn = self._get_connection()
+            table_count = len(self._registered_tables)
+            
+            for full_table_name in list(self._registered_tables.keys()):
+                try:
+                    # 删除表
+                    drop_sql = f"DROP TABLE IF EXISTS {full_table_name}"
+                    conn.execute(drop_sql)
+                    logger.debug(f"已删除表: {full_table_name}")
+                except Exception as e:
+                    logger.warning(f"删除表失败: {full_table_name}, 错误: {str(e)}")
+            
+            # 清理管理器中的注册信息
+            self._registered_tables.clear()
+            self._registered_catalogs.clear()
+            logger.info(f"已清理 {table_count} 个已注册的表")
+        except Exception as e:
+            logger.error(f"清理已注册表时出错: {str(e)}")
+            raise
 
     def clear_session(self):
         """

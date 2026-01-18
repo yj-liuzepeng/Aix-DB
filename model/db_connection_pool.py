@@ -38,7 +38,7 @@ class DBConnectionPool:
                 return
 
             # 获取数据库连接URI，如果环境变量不存在则使用默认值
-            database_uri = os.getenv("SQLALCHEMY_DATABASE_URI", "mysql+pymysql://root:1@127.0.0.1:13006/chat_db")
+            database_uri = os.getenv("SQLALCHEMY_DATABASE_URI", "postgresql+psycopg2://aix_db:1@127.0.0.1:5432/aix_db")
 
             self.engine = create_engine(
                 database_uri,
@@ -47,7 +47,7 @@ class DBConnectionPool:
                 pool_recycle=3600,  # 连接回收时间（秒），避免长时间连接失效
                 pool_timeout=30,  # 连接池等待超时时间（秒）
                 pool_pre_ping=True,  # 启用连接预检测，确保连接有效性
-                echo=True,  # 是否打印SQL语句，用于调试
+                echo=False,  # 是否打印SQL语句，用于调试
             )
             self.SessionLocal = sessionmaker(bind=self.engine)
             self.Base = Base

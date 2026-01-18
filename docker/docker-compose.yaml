@@ -36,12 +36,12 @@ services:
     environment:
       SERVER_PORT: ${SERVER_PORT:-8089}
       SERVER_WORKERS: ${SERVER_WORKERS:-2}
-      MYSQL_HOST: ${MYSQL_HOST:-}
-      MYSQL_PORT: ${MYSQL_PORT:-}
-      MYSQL_USER: ${MYSQL_USER:-}
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-}
-      MYSQL_DATABASE: ${MYSQL_DATABASE:-}
-      SQLALCHEMY_DATABASE_URI: ${SQLALCHEMY_DATABASE_URI:-}
+      POSTGRES_HOST: ${POSTGRES_HOST:-postgres-db}
+      POSTGRES_PORT: ${POSTGRES_PORT:-5432}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DATABASE: ${POSTGRES_DATABASE:-chat_db}
+      SQLALCHEMY_DATABASE_URI: ${SQLALCHEMY_DATABASE_URI:-postgresql+psycopg2://postgres:postgres@postgres-db:5432/chat_db}
       DIFY_SERVER_URL: ${DIFY_SERVER_URL:-}
       DIFY_DATABASE_QA_API_KEY: ${DIFY_DATABASE_QA_API_KEY:-}
       MINIO_ENDPOINT: ${MINIO_ENDPOINT:-}:${MINIO_PORT:-}
@@ -73,68 +73,82 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
 
-  mysql:
-    image: mysql:latest
-    container_name: mysql-db
-    ports:
-      - "13006:3306"
-    networks:
-      - chat-network
+#  mysql:
+#    image: mysql:8.0.33
+#    container_name: mysql-db
+#    ports:
+#      - "13006:3306"
+#    networks:
+#      - chat-network
+#    environment:
+#      - MYSQL_ROOT_PASSWORD=1
+#      - CHARACTER_SET_SERVER=utf8mb4
+#      - COLLATION_SERVER=utf8mb4_unicode_ci
+#      - TZ=Asia/Shanghai
+#    volumes:
+#      - ./volume/mysql/data:/var/lib/mysql
+#      - ./my.cnf:/etc/mysql/conf.d/my.cnf
+
+  pgvector-db:
+    image: registry.cn-qingdao.aliyuncs.com/dataease/postgres:17.6
+    container_name: pgvector-db
+    restart: unless-stopped
     environment:
-      - MYSQL_ROOT_PASSWORD=1
-      - CHARACTER_SET_SERVER=utf8mb4
-      - COLLATION_SERVER=utf8mb4_unicode_ci
+      - POSTGRES_PASSWORD=1
+      - POSTGRES_USER=aix_db
+      - POSTGRES_DB=aix_db
       - TZ=Asia/Shanghai
-    volumes:
-      - ./volume/mysql/data:/var/lib/mysql
-      - ./my.cnf:/etc/mysql/conf.d/my.cnf
-
-  mcphub:
-    image: samanhappy/mcphub:0.11.0
-    container_name: mcphub
     ports:
-      - "3300:3000"
-    networks:
-      - chat-network
+      - "5432:5432"
     volumes:
-      - ./volume/mcp-data/mcp_settings.json:/app/mcp_settings.json
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+      - ./volume/pg_data:/var/lib/postgresql/data
+#
+#  mcphub:
+#    image: samanhappy/mcphub:0.11.0
+#    container_name: mcphub
+#    ports:
+#      - "3300:3000"
+#    networks:
+#      - chat-network
+#    volumes:
+#      - ./volume/mcp-data/mcp_settings.json:/app/mcp_settings.json
+#    extra_hosts:
+#      - "host.docker.internal:host-gateway"
 
-  gpt-vis-api:
-    image: crpi-7xkxsdc0iki61l0q.cn-hangzhou.personal.cr.aliyuncs.com/apconw/gpt-vis-api:0.0.1
-    container_name: gpt-vis-api
-    ports:
-      - "3100:3000"
-    networks:
-      - chat-network
-    environment:
-      MINIO_USE_SSL: "false"
-      MINIO_PORT: ${MINIO_PORT:-}
-      MINIO_ENDPOINT: ${MINIO_ENDPOINT:-}
-      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-}
-      MINIO_SECRET_KEY: ${MiNIO_SECRET_KEY:-}
-      MINIO_BUCKET: ${MINIO_BUCKET:-}
-      MINIO_PUBLIC_DOMAIN: ${MINIO_PUBLIC_DOMAIN:-}
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-
-  neo4j-apoc:
-    image: neo4j:5.26.11-ubi9
-    container_name: neo4j-apoc
-    ports:
-      - "7474:7474"
-      - "7687:7687"
-    networks:
-      - chat-network
-    volumes:
-      - ./volume/neo4j/data:/data
-      - ./volume/neo4j/plugins:/plugins
-    environment:
-      - apoc.export.file.enabled=true
-      - apoc.import.file.enabled=true
-      - apoc.import.file.use_neo4j_config=true
-      - NEO4J_AUTH=neo4j/neo4j123
+#  gpt-vis-api:
+#    image: crpi-7xkxsdc0iki61l0q.cn-hangzhou.personal.cr.aliyuncs.com/apconw/gpt-vis-api:0.0.1
+#    container_name: gpt-vis-api
+#    ports:
+#      - "3100:3000"
+#    networks:
+#      - chat-network
+#    environment:
+#      MINIO_USE_SSL: "false"
+#      MINIO_PORT: ${MINIO_PORT:-}
+#      MINIO_ENDPOINT: ${MINIO_ENDPOINT:-}
+#      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-}
+#      MINIO_SECRET_KEY: ${MiNIO_SECRET_KEY:-}
+#      MINIO_BUCKET: ${MINIO_BUCKET:-}
+#      MINIO_PUBLIC_DOMAIN: ${MINIO_PUBLIC_DOMAIN:-}
+#    extra_hosts:
+#      - "host.docker.internal:host-gateway"
+#
+#  neo4j-apoc:
+#    image: neo4j:5.26.11-ubi9
+#    container_name: neo4j-apoc
+#    ports:
+#      - "7474:7474"
+#      - "7687:7687"
+#    networks:
+#      - chat-network
+#    volumes:
+#      - ./volume/neo4j/data:/data
+#      - ./volume/neo4j/plugins:/plugins
+#    environment:
+#      - apoc.export.file.enabled=true
+#      - apoc.import.file.enabled=true
+#      - apoc.import.file.use_neo4j_config=true
+#      - NEO4J_AUTH=neo4j/neo4j123
 
 networks:
   chat-network:

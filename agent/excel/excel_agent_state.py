@@ -51,8 +51,10 @@ class ExcelAgentState(TypedDict):
     db_info: list[dict]  # 把表格映射成数据库表结构（扩展支持多catalog）
     catalog_info: Dict[str, str]  # Catalog信息 {catalog_name: file_path}
     generated_sql: Optional[str]  # 生成的 SQL
-    chart_url: Optional[str]  # AntV MCP图表地址
     chart_type: Optional[str]  # 图表类型
-    apache_chart_data: Optional[Dict[str, Any]]  # Apache图表数据
+    sql_response_json: Optional[Dict[str, Any]]  # SQL 生成的完整 JSON 响应（用于前端显示）
+    chart_config: Optional[Dict[str, Any]]  # 图表配置（和数据问答一致）
     execution_result: Optional[ExecutionResult]  # SQL 执行结果
     report_summary: Optional[str]  # 报告摘要
+    render_data: Optional[Dict[str, Any]]  # 渲染数据（和数据问答一致）
+    recommended_questions: Optional[List[str]]  # 推荐问题列表

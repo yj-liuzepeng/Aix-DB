@@ -1,5 +1,9 @@
 import os
 
+# 避免本地向量/Embedding 库重复初始化 OpenMP 导致崩溃或卡死
+# 参考错误: "OMP: Error #15: Initializing libomp.dylib, but found libomp.dylib already initialized."
+os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
+
 from sanic import Sanic
 from sanic.response import empty
 
@@ -17,7 +21,17 @@ autodiscover(
     recursive=True,
 )
 # 添加api docs
-app.extend(config={"OAS_PATH_TO_REDOC_HTML": "docs/redoc.html", "OAS_PATH_TO_SWAGGER_HTML": "docs/swagger.html"})
+app.extend(
+    config={
+        "OAS_PATH_TO_REDOC_HTML": "docs/redoc.html",
+        "OAS_PATH_TO_SWAGGER_HTML": "docs/swagger.html",
+        "OAS_UI_DEFAULT": "swagger",
+        "OAS_VERSION": "3.1.0",
+        "OAS_TITLE": "Sanic Web API",
+        "OAS_DESCRIPTION": "Sanic Web API 接口文档",
+        "OAS_VERSION_STRING": "1.0.0",
+    }
+)
 
 app.route("/")(lambda _: empty())
 

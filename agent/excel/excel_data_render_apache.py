@@ -3,76 +3,88 @@ import logging
 import traceback
 from decimal import Decimal
 
-from agent.text2sql.state.agent_state import AgentState, ExecutionResult
+from agent.excel.excel_agent_state import ExcelAgentState, ExecutionResult
 import sqlglot
 from sqlglot import parse
 from datetime import datetime, date
 import pandas as pd
 
-from services.db_qadata_process import process
 
 """
-AntV MCP默认没有提供表格组件 这里使用
-Apache EChart数据渲染节点来支撑表格的渲染
-前期使用硬编码方式后面使用MCP方式
+表格问答数据渲染节点 - Apache 格式
+使用和数据问答一致的渲染方式
 """
 
 logger = logging.getLogger(__name__)
 
 
-def excel_data_render_apache(state: AgentState) -> dict:
+def excel_data_render_apache(state: ExcelAgentState) -> ExcelAgentState:
     """
-    渲染Apache ECharts数据（支持表格数据结构）
+    渲染表格数据（支持表格数据结构）
+    使用和数据问答一致的格式
 
-    :param state: Agent状态对象
-    :return: 包含图表数据的字典
+    :param state: Excel Agent状态对象
+    :return: 更新后的 state
     """
-    table_schema_info = state.get("db_info", {})
-    # sql_reasoning = state.get("sql_reasoning", "")
+    db_info = state.get("db_info", [])
     generated_sql = state.get("generated_sql", "")
     data_result: ExecutionResult = state.get("execution_result")
 
-    # 构建基础表格数据结构
-    table_data = {"llm": {"type": "response_table"}, "data": {"column": [], "result": []}}
+    if not data_result or not data_result.success or not data_result.data:
+        logger.warning("SQL 执行结果为空或失败,跳过数据渲染")
+        return state
 
-    # 获取生成的SQL中的表名
-    generated_table_names = extract_table_names_sqlglot(generated_sql)
-    if not generated_table_names:
-        logger.info("未从SQL中提取到表名")
-        return table_data
+    data = data_result.data
+    if not data:
+        logger.warning("数据为空,跳过数据渲染")
+        return state
 
-    # 检查是否为 SELECT * 查询
-    is_select_all = check_if_select_all(generated_sql)
+    # 获取实际的列名(从第一条数据中提取)
+    actual_columns = list(data[0].keys()) if data else []
+    
+    if not actual_columns:
+        logger.warning("无法从数据中提取列名，跳过数据渲染")
+        return state
 
-    # 获取列标题（中文注释或别名）
-    if is_select_all:
-        # 对于 SELECT * 查询，从表 schema 中获取所有列信息
-        column_comments = get_all_column_comments_for_tables(generated_table_names, table_schema_info)
-        # 获取实际的列名
-        actual_columns = get_actual_columns_for_select_all(generated_table_names, table_schema_info)
-    else:
-        # 正常解析 SQL 获取列信息
-        column_comments = extract_select_columns_with_comments(generated_sql, table_schema_info)
-        # 获取实际的列名
-        actual_columns = extract_actual_column_names(generated_sql)
+    logger.info(f"提取到实际列名: {actual_columns}")
 
-    table_data["data"]["column"] = column_comments
+    # 使用 excel_data_render_antv 中的映射逻辑
+    from agent.excel.excel_data_render_antv import map_columns_to_comments
+    
+    chart_config = state.get("chart_config", {})
+    
+    # 映射列名为中文注释
+    column_names_chinese, column_mapping = map_columns_to_comments(
+        generated_sql, db_info, actual_columns, chart_config
+    )
+    
+    logger.info(f"列名映射结果: 中文列名数量={len(column_names_chinese)}")
 
-    # 填充 result 数据
-    if data_result and data_result.data:
-        for row in data_result.data:
-            # 确保 row 是 dict 类型
-            if isinstance(row, dict):
-                # 按 actual_columns 顺序取出值，对应 column_comments 的顺序
-                row_values = [convert_value(row.get(col, None)) for col in actual_columns]
-                # 修改此处：将 row_values 和 column_comments 组合成对象
-                table_data["data"]["result"].append(dict(zip(column_comments, row_values)))
-            else:
-                # 兼容非 dict 格式（如元组或列表）
-                logger.info(f"数据行格式异常，跳过: {row}")
+    # 转换数据格式: 将英文列名映射为中文列名
+    formatted_data = []
+    for row in data:
+        formatted_row = {}
+        for col_name, value in row.items():
+            chinese_col_name = column_mapping.get(col_name, col_name)
+            formatted_row[chinese_col_name] = convert_value(value)
+        formatted_data.append(formatted_row)
 
-    processed_data = process(json.dumps(table_data, ensure_ascii=False))
-    state["apache_chart_data"] = processed_data
+    # 确保 columns 字段与 formatted_data 的 key 一致
+    if formatted_data and len(formatted_data) > 0:
+        actual_chinese_columns = list(formatted_data[0].keys())
+        column_names_chinese = actual_chinese_columns
+
+    # 构建返回数据格式（和数据问答的 data_render_antv 保持一致）
+    render_data = {
+        "template_code": "temp01",  # 表格类型
+        "columns": column_names_chinese,
+        "data": formatted_data,
+    }
+    
+    # 保存到 state（使用 render_data 字段，和数据问答一致）
+    state["render_data"] = render_data
+
+    logger.info(f"数据渲染完成,共 {len(formatted_data)} 条记录, {len(column_names_chinese)} 列")
 
     return state
 

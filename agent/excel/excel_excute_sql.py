@@ -35,8 +35,11 @@ def exe_sql_excel_query(state):
         # 获取SQL查询语句
         sql = state["generated_sql"].replace("`", "")  # 移除反引号以避免SQL语法错误
 
-        logger.info(f"执行SQL查询: {sql}")
-        logger.info(f"可用catalog: {list(registered_catalogs.keys())}")
+        logger.info(f"准备执行SQL查询")
+        logger.debug(f"  SQL语句: {sql[:200]}{'...' if len(sql) > 200 else ''}")
+        logger.debug(f"  可用catalog数量: {len(registered_catalogs)}")
+        if registered_catalogs:
+            logger.debug(f"  Catalog列表: {list(registered_catalogs.keys())}")
 
         # 执行SQL查询
         columns, data = duckdb_manager.execute_sql(sql)
@@ -48,12 +51,28 @@ def exe_sql_excel_query(state):
             data=data
         )
 
-        logger.info(f"查询执行成功: 返回 {len(data)} 行, {len(columns)} 列")
+        logger.info(f"SQL查询执行成功: 返回 {len(data)} 行数据, {len(columns)} 列")
 
     except Exception as e:
         error_msg = str(e)
-        logger.error(f"执行SQL查询失败: {error_msg}")
-        traceback.print_exception(e)
+        # 优化错误日志格式
+        if "does not exist" in error_msg or "Table with name" in error_msg:
+            import re
+            match = re.search(r'Table with name ([^\s!]+)', error_msg)
+            if match:
+                table_name = match.group(1)
+                logger.error(f"SQL查询执行失败: 表 '{table_name}' 不存在")
+            else:
+                logger.error(f"SQL查询执行失败: 表不存在")
+        elif "Parser Error" in error_msg or "syntax error" in error_msg.lower():
+            logger.error(f"SQL查询执行失败: SQL语法错误")
+            logger.debug(f"  错误详情: {error_msg[:300]}")
+        else:
+            logger.error(f"SQL查询执行失败: {error_msg[:200]}")
+        
+        # 打印完整堆栈信息（用于调试）
+        if logger.isEnabledFor(logging.DEBUG):
+            traceback.print_exception(e)
 
         state["execution_result"] = ExecutionResult(
             success=False,

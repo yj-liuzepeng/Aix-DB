@@ -14,10 +14,16 @@ class SysCodeEnum(Enum):
 
     c_9999 = (9999, "系统异常", "系统异常")
 
+    # 数据源管理相关状态码
+    SUCCESS = (200, "成功", "操作成功")
+    PARAM_ERROR = (400, "参数错误", "请求参数错误")
+    DATA_NOT_FOUND = (404, "数据不存在", "请求的数据不存在")
+    SYSTEM_ERROR = (500, "系统错误", "系统内部错误")
 
-class DiFyAppEnum(Enum):
+
+class IntentEnum(Enum):
     """
-    DiFy app-key 枚举
+    意图分类 枚举
     """
 
     DATABASE_QA = ("DATABASE_QA", "数据问答")
@@ -31,16 +37,16 @@ class DiFyAppEnum(Enum):
 
 def get_qatype_name(member_name):
     """
-    根据DiFyAppEnum枚举成员名称获取对应的中文名称
+    根据IntentEnum枚举成员名称获取对应的中文名称
 
     :param member_name: 枚举成员名称字符串，如 "REPORT_QA"
     :return: 对应的中文名称字符串
     """
     try:
-        enum_member = DiFyAppEnum[member_name]
+        enum_member = IntentEnum[member_name]
         return enum_member.value[1]
     except KeyError:
-        raise ValueError(f"'{member_name}' 不是有效的DiFyAppEnum枚举成员")
+        raise ValueError(f"'{member_name}' 不是有效的IntentEnum枚举成员")
 
 
 class DataTypeEnum(Enum):
@@ -55,6 +61,10 @@ class DataTypeEnum(Enum):
     BUS_DATA = ("t04", "业务数据")
 
     TASK_ID = ("t11", "任务ID,方便后续点赞等操作")
+
+    RECORD_ID = ("t12", "记录ID,用于查询SQL等操作")
+
+    STEP_PROGRESS = ("t14", "步骤进度信息")
 
     STREAM_END = ("t99", "流式推流结束")
 

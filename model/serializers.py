@@ -33,9 +33,9 @@ def single_model_to_dict(model_instance: DeclarativeBase) -> Dict[str, Any]:
             try:
                 value = getattr(model_instance, column.name)
                 if isinstance(value, datetime.datetime):
-                    value = value.isoformat() if value else None
+                    value = value.strftime("%Y-%m-%d %H:%M:%S") if value else None
                 elif isinstance(value, datetime.date):
-                    value = value.isoformat() if value else None
+                    value = value.strftime("%Y-%m-%d") if value else None
                 result[column.name] = value
             except DetachedInstanceError:
                 # 处理与session分离的实例

@@ -12,7 +12,6 @@ requires-python = ">=3.11,<3.12"
 dependencies = [
     "sanic>=25.0.0,<25.4.0",
     "sqlalchemy>=2.0.31,<3.0.0",
-    "aiomysql>=0.2.0,<0.3.0",
     "requests>=2.32.3,<3.0.0",
     "redis>=5.0.7,<6.0.0",
     "pytest>=8.3.2,<9.0.0",
@@ -33,7 +32,11 @@ dependencies = [
     "pymupdf>=1.25.2,<2.0.0",
     "beautifulsoup4>=4.13.3,<5.0.0",
     "lxml>=5.3.1,<6.0.0",
-    "pymysql>=1.1.1",
+    "psycopg2-binary>=2.9.9",
+    "oracledb>=2.0.0",
+    "pymssql>=2.2.11",
+    "clickhouse-driver>=0.2.7",
+    "pycryptodome>=3.23.0",
     "mcp>=1.12.2",
     "openai>=1.97.0",
     "langchain>=1.0.0",
@@ -63,6 +66,12 @@ dependencies = [
     "langgraph-cli[inmem]>=0.4.7",
     "langfuse>=3.10.0",
     "yfinance>=0.2.66",
+    "anthropic>=0.75.0",
+    "claude-agent-sdk>=0.1.16",
+    "pymysql>=1.1.2",
+    "pgvector>=0.4.2",
+    "langchain-huggingface>=1.2.0",
+    "sentence-transformers>=5.2.0",
 ]
 
 [[tool.uv.index]]

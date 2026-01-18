@@ -14,7 +14,7 @@ from langgraph.checkpoint.memory import InMemorySaver
 from agent.deepagent.tools import search_web
 from common.llm_util import get_llm
 from common.minio_util import MinioUtils
-from constants.code_enum import DataTypeEnum, DiFyAppEnum
+from constants.code_enum import DataTypeEnum, IntentEnum
 from services.user_service import add_user_record, decode_jwt_token
 from langfuse import get_client
 from langfuse.langchain import CallbackHandler
@@ -32,9 +32,6 @@ class DeepAgent:
     """
 
     def __init__(self):
-
-        # 初始化LLM
-        self.llm = get_llm()
 
         # 全局checkpointer用于持久化所有用户的对话状态
         self.checkpointer = InMemorySaver()
@@ -125,7 +122,7 @@ class DeepAgent:
                 tools=self.tools,  # 可用工具列表
                 system_prompt=self.CORE_INSTRUCTIONS,  # 系统提示词
                 subagents=[self.researcher, self.analyst],
-                model=self.llm,
+                model=get_llm(),
                 backend=self.checkpointer,
             ).with_config({"recursion_limit": self.RECURSION_LIMIT})
 
@@ -259,7 +256,7 @@ class DeepAgent:
                 query,
                 t02_answer_data,
                 {},
-                DiFyAppEnum.REPORT_QA.value[0],
+                IntentEnum.REPORT_QA.value[0],
                 user_token,
                 file_list,
             )

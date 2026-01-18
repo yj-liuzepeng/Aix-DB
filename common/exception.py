@@ -9,18 +9,17 @@ class MyException(Exception):
     从中提取错误代码、错误消息和详细信息。
     """
 
-    def __init__(self, ex_code: SysCodeEnum, detail: str = ""):
+    def __init__(self, ex_code: SysCodeEnum, message: str = ""):
         """
         初始化自定义异常实例。
 
         Args:
             ex_code (SysCodeEnum): 错误代码枚举值，包含错误代码、错误消息和详细信息。
-            detail (str, optional): 额外的错误详细信息，默认为空字符串。
+            message (str, optional): 额外的错误详细信息，默认为空字符串。
         """
         self.code = ex_code.value[0]
-        self.message = ex_code.value[1]
-        self.detail = ex_code.value[2] if not detail else detail
-        super().__init__(f"{ex_code.name}({self.code}): {self.message} - {self.detail}")
+        self.message = message if message else ex_code.value[1]
+        super().__init__(f"{ex_code.name}({self.code}): {self.message} - {self.message}")
 
     def __str__(self) -> str:
         """
@@ -29,7 +28,7 @@ class MyException(Exception):
         Returns:
             str: 异常的字符串表示。
         """
-        return f"MyException: code: {self.code}, message: {self.message} - detail: {self.detail}"
+        return f"MyException: code: {self.code}, message: {self.message}"
 
     def to_dict(self) -> dict:
         """

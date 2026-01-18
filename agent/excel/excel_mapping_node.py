@@ -47,7 +47,19 @@ def read_excel_columns(state: ExcelAgentState) -> ExcelAgentState:
         # 获取DuckDB管理器实例
         duckdb_manager = get_duckdb_manager(chat_id=chat_id)
 
-        logger.info(f"开始处理 {len(file_list)} 个文件")
+        # 重新执行时，先清理旧的表，然后重新注册
+        # 获取已注册的表，如果存在则先清理
+        registered_tables = duckdb_manager.get_registered_tables()
+        if registered_tables:
+            logger.info(f"检测到已注册的表（{len(registered_tables)} 个），清理旧表以重新注册")
+            # 清理已注册的表
+            try:
+                duckdb_manager.clear_registered_tables()
+                logger.debug(f"  已清理 {len(registered_tables)} 个旧表")
+            except Exception as e:
+                logger.warning(f"清理旧表时出错: {str(e)}，将继续注册新表")
+
+        logger.info(f"开始处理文件: 共 {len(file_list)} 个文件")
 
         # 处理每个文件
         for file_idx, file_info in enumerate(file_list):

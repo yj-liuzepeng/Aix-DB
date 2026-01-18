@@ -1,11 +1,9 @@
 <script lang="ts" setup>
 import type { TransformStreamModelTypes } from './transform'
-import QatypeIcon from '../IconFont/QatypeIcon.vue'
-import MarkdownEcharts from './MarkdownEcharts.vue'
-import MarkdownTable from './MarkdownTable.vue'
+import MarkdownAntv from './markdown-antv.vue'
 import MarkdownInstance from './plugins/markdown'
+import SuggestedView from '@/views/chat/suggested-page.vue'
 import {
-
   transformStreamValue,
 } from './transform'
 
@@ -20,6 +18,8 @@ const props = withDefaults(defineProps<Props>(), {
   qaType: '', // 问答类型
   model: 'standard',
   parentScollBottomMethod: () => {},
+  chartData: null, // 图表数据，用于多轮对话数据隔离
+  recordId: undefined, // 记录ID，用于查询SQL语句
 })
 
 // 自定义事件用于 子父组件传递事件信息
@@ -32,6 +32,9 @@ const emit = defineEmits([
   'recycleQa',
   'praiseFeadBack',
   'belittleFeedback',
+  'suggested',
+  'progress-display-change',
+  'step-progress',
 ])
 
 const { copy, copyDuration } = useClipText()
@@ -44,6 +47,13 @@ interface Props {
   reader?: ReadableStreamDefaultReader<Uint8Array> | null
   model?: TransformStreamModelTypes
   parentScollBottomMethod?: () => void // 父组件滚动方法
+  chartData?: { // 图表数据，用于多轮对话数据隔离
+    template_code?: string
+    columns?: string[]
+    data?: any[]
+    recommended_questions?: string[]
+  } | null
+  recordId?: number // 记录ID，用于查询SQL语句
 }
 
 // 解构 props
@@ -70,6 +80,7 @@ const businessStore = useBusinessStore()
  * reader 读取是否结束
  */
 const readIsOver = ref(false)
+
 
 const renderedMarkdown = computed(() => {
   return MarkdownInstance.render(displayText.value)
@@ -144,6 +155,25 @@ const currentChartType = ref('')
 
 // 读取数据流
 const readTextStream = async () => {
+  // 对于历史对话，如果 isView=true 且 chartData 存在，直接设置为完成状态以显示图表
+  // 无论 reader 是否存在，都应该优先使用 chartData
+  if (props.isView && props.chartData) {
+    const chartData = props.chartData
+    if (chartData && chartData.template_code) {
+      currentChartType.value = chartData.template_code
+    }
+    isCompleted.value = true
+    readIsOver.value = true
+    emit('completed')
+    emit('chartready')
+    
+    // 如果 reader 不存在，直接返回
+    if (!props.reader) {
+      return
+    }
+    // 如果 reader 存在，继续处理流，但图表已经在上面设置了
+  }
+  
   if (!props.reader) {
     return
   }
@@ -166,6 +196,10 @@ const readTextStream = async () => {
       }
       if (done) {
         readIsOver.value = true
+        // 如果流已完成，确保触发 showText 来处理结束逻辑
+        if (typingAnimationFrame === null) {
+          showText()
+        }
         break
       }
 
@@ -181,12 +215,22 @@ const readTextStream = async () => {
       )
       if (stream.done) {
         readIsOver.value = true
-
+        // 如果流已完成，确保触发 showText 来处理结束逻辑
+        if (typingAnimationFrame === null) {
+          showText()
+        }
         break
       }
 
+      // 处理步骤进度信息
+      if (stream.progress) {
+        emit('step-progress', stream.progress)
+      }
+
       // 每条消息换行显示
-      textBuffer.value += stream.content
+      if (stream.content) {
+        textBuffer.value += stream.content
+      }
 
       if (typingAnimationFrame === null) {
         showText()
@@ -269,10 +313,15 @@ const showText = () => {
       },
       () => {
         // 这里只有需要显示图表数据时才显示图表
-        const dataType = businessStore.writerList.dataType
-        if (dataType && dataType === 't04') {
-          currentChartType.value
-                        = businessStore.writerList.data.template_code
+        // 优先使用 props.chartData（历史对话），否则使用全局 store（实时对话）
+        const chartData = props.chartData || businessStore.writerList?.data
+        if (chartData && chartData.template_code) {
+          currentChartType.value = chartData.template_code
+        } else {
+          const dataType = businessStore.writerList?.dataType
+          if (dataType && dataType === 't04') {
+            currentChartType.value = businessStore.writerList.data.template_code
+          }
         }
 
         emit('update:reader', null)
@@ -280,6 +329,8 @@ const showText = () => {
         emit('chartready')
         readerLoading.value = false
         isCompleted.value = true
+        // 新对话完成后，恢复推荐问题按钮可点击状态
+        businessStore.set_suggested_disabled(false)
         nextTick(() => {
           readIsOver.value = false
         })
@@ -290,12 +341,25 @@ const showText = () => {
   scrollToBottomIfAtBottom()
 }
 
+// 记录上一次的 reader 状态，用于检测 reader 变化
+const previousReader = ref<ReadableStreamDefaultReader | null>(null)
+
 watch(
   () => props.reader,
-  () => {
-    if (props.reader) {
+  (newReader, oldReader) => {
+    if (newReader) {
       readTextStream()
+    } else if (props.isView && props.chartData) {
+      // 对于历史对话，如果 reader 为空但 chartData 存在，直接设置为完成状态以显示图表
+      const chartData = props.chartData
+      if (chartData && chartData.template_code) {
+        currentChartType.value = chartData.template_code
+      }
+      isCompleted.value = true
+      readIsOver.value = true
     }
+    
+    previousReader.value = newReader
   },
   {
     immediate: true,
@@ -314,29 +378,23 @@ onUnmounted(() => {
   resetStatus()
 })
 
-defineExpose({
-  abortReader,
-  resetStatus,
-  initializeStart,
-  initializeEnd,
+// 检测是否有后端数据推送
+const hasDataReceived = computed(() => {
+  // 只有当实际接收到内容时，才认为有数据推送，从而隐藏外部的 bars-scale loading
+  // 如果只是 readerLoading 为 true 但没有内容，继续显示外部 loading
+  return displayText.value.length > 0
 })
 
+// 监听数据接收状态变化，通知父组件隐藏 bars-scale
+watch(hasDataReceived, (hasData, hadData) => {
+  // 当有数据推送时（不论步骤数据还是其他数据），通知父组件隐藏 bars-scale
+  if (hasData !== hadData) {
+    emit('progress-display-change', hasData)
+  }
+}, { immediate: true })
+
 const showLoading = computed(() => {
-  if (initialized.value) {
-    return true
-  }
-
-  if (!props.reader) {
-    return false
-  }
-
-  if (!readerLoading.value) {
-    return false
-  }
-  if (displayText.value) {
-    return false
-  }
-
+  // 始终不显示内部 loading，统一使用外部的 bars-scale，实现图标融合
   return false
 })
 
@@ -360,7 +418,32 @@ const belittleFeedback = () => {
 
 // 重新提问
 const handleRecycleAquestion = function () {
+  // 如果正在等待后端对话结束，只滚动到底部，不处理其他逻辑
+  if (isWaitingForBackendResponse.value) {
+    nextTick(() => {
+      scrollToBottom()
+      parentScollBottomMethod.value()
+    })
+    return
+  }
+  
+  // 如果已禁用，直接返回
+  if (businessStore.suggestedDisabled) {
+    return
+  }
+  
+  // 禁用所有推荐问题按钮（全局状态，影响所有历史对话）
+  businessStore.set_suggested_disabled(true)
+  
+  // 触发重新生成事件
   emit('recycleQa')
+  
+  // 自动滚动到底部
+  nextTick(() => {
+    scrollToBottom()
+    // 同时调用父组件的滚动方法
+    parentScollBottomMethod.value()
+  })
 }
 
 // 监控表格图表是否渲染完毕
@@ -371,6 +454,94 @@ const onTableCompletedReader = function () {
 const onChartCompletedReader = function () {
   emit('chartready')
 }
+
+/**
+ * 统一判断：是否正在等待后端对话结束
+ * 如果正在等待，则不应该处理用户操作
+ */
+const isWaitingForBackendResponse = computed(() => {
+  // 优先级1：如果对话已完成，不应该被认为是等待后端响应
+  // 这是最优先的判断，因为一旦完成就应该允许重新生成
+  if (isCompleted.value) {
+    return false
+  }
+  
+  // 优先级2：对于历史对话，如果没有 reader，不应该被认为是等待后端响应
+  if (props.isView && !props.reader) {
+    return false
+  }
+  
+  // 优先级3：如果正在加载中（readerLoading），说明正在等待
+  if (readerLoading.value) {
+    return true
+  }
+  
+  // 优先级4：如果有 reader 存在，说明正在等待后端响应
+  // 无论 readIsOver 状态如何，只要 reader 存在且对话未完成，就认为是等待中
+  if (props.reader) {
+    return true
+  }
+  
+  // 其他情况：不在等待中
+  return false
+})
+
+// 推荐问题点击事件
+const onSuggested = function (index: number) {
+  // 如果正在等待后端对话结束，只滚动到底部，不处理其他逻辑
+  if (isWaitingForBackendResponse.value) {
+    nextTick(() => {
+      scrollToBottom()
+      parentScollBottomMethod.value()
+    })
+    return
+  }
+  
+  // 如果已禁用，直接返回
+  if (businessStore.suggestedDisabled) {
+    return
+  }
+  
+  // 禁用所有推荐问题按钮（全局状态，影响所有历史对话）
+  businessStore.set_suggested_disabled(true)
+  
+  // 优先使用 props.chartData（历史对话），否则使用全局 store（实时对话）
+  const chartData = props.chartData || businessStore.writerList?.data
+  const recommendedQuestions = chartData?.recommended_questions || []
+  if (recommendedQuestions && recommendedQuestions.length > index) {
+    emit('suggested', recommendedQuestions[index])
+    
+    // 自动滚动到底部
+    nextTick(() => {
+      scrollToBottom()
+      // 同时调用父组件的滚动方法
+      parentScollBottomMethod.value()
+    })
+  }
+}
+
+// 获取推荐问题列表
+const recommendedQuestions = computed(() => {
+  // 优先使用 props.chartData（历史对话），否则使用全局 store（实时对话）
+  const chartData = props.chartData || businessStore.writerList?.data
+  return chartData?.recommended_questions || []
+})
+
+// 图表渲染条件
+const shouldRenderChart = computed(() => {
+  return currentChartType.value && isCompleted.value
+})
+
+const qaOptions = [
+  { icon: 'i-hugeicons:ai-chat-02', label: '智能问答', value: 'COMMON_QA', color: '#7E6BF2' },
+  { icon: 'i-hugeicons:database-01', label: '数据问答', value: 'DATABASE_QA', color: '#10b981' },
+  { icon: 'i-hugeicons:table-01', label: '表格问答', value: 'FILEDATA_QA', color: '#f59e0b' },
+  { icon: 'i-hugeicons:search-02', label: '深度搜索', value: 'REPORT_QA', color: '#8b5cf6' },
+]
+
+const currentQaOption = computed(() => {
+  return qaOptions.find((opt) => opt.value === props.qaType) || qaOptions[0]
+})
 </script>
 
 <template>
@@ -383,7 +554,7 @@ const onChartCompletedReader = function () {
     content-class="w-full h-full flex"
     :show="showLoading"
     :rotate="false"
-    class="bg-#f6f7fb"
+    class="bg-white"
     :style="{
       '--n-opacity-spinning': '0.3',
     }"
@@ -400,8 +571,8 @@ const onChartCompletedReader = function () {
     >
       <div
         text-16
-        class="w-full h-full overflow-hidden"
-        :class="[!displayText && 'flex items-center justify-center']"
+        class="w-full h-full flex flex-col"
+        :class="[!displayText && 'items-center justify-center overflow-hidden']"
       >
         <!-- <n-empty v-if="!displayText" size="large" class="font-bold">
                     <template #icon>
@@ -411,73 +582,62 @@ const onChartCompletedReader = function () {
                     </template>
                 </n-empty> -->
 
+
         <div
           v-if="displayText"
           ref="refWrapperContent"
           text-16
-          class="w-full h-full overflow-y-auto"
+          class="w-full flex-1 overflow-y-auto"
           p-15px
         >
           <div
             class="markdown-wrapper"
+            :class="{ typing: readerLoading }"
             v-html="renderedContent"
           ></div>
 
           <div
-            v-if="readerLoading"
-            size-24
-            style="margin-left: 10%"
-            class="i-svg-spinners:pulse-3"
-          ></div>
-
-          <div
-            v-if="
-              currentChartType
-                && currentChartType !== 'temp01'
-                && isCompleted
-            "
+            v-if="shouldRenderChart"
             whitespace-break-spaces
             text-center
             :style="{
               'align-items': `center`,
-              'width': `80%`,
-              'margin-left': `10%`,
-              'margin-right': `10%`,
+              'width': `100%`,
+              'margin-left': `0`,
+              'margin-right': `0`,
             }"
           >
-            <MarkdownEcharts
+            <MarkdownAntv
               :chart-id="props.chartId"
-              @chartRendered="() => onChartCompletedReader()"
+              :chart-data="props.chartData"
+              :record-id="props.recordId"
+              :qa-type="props.qaType"
+              @chart-rendered="() => onChartCompletedReader()"
+              @table-rendered="() => onTableCompletedReader()"
             />
           </div>
-
           <div
-            v-if="
-              currentChartType
-                && currentChartType === 'temp01'
-                && isCompleted
-            "
-            whitespace-break-spaces
-            text-center
+            v-if="recommendedQuestions.length > 0 && isCompleted"
+            class="w-full"
             :style="{
-              'align-items': `center`,
-              'width': `80%`,
-              'margin-left': `10%`,
-              'margin-right': `10%`,
+              'margin-top': currentChartType ? '16px' : '0',
+              'margin-bottom': '16px',
             }"
           >
-            <MarkdownTable
-              @tableRendered="() => onTableCompletedReader()"
+            <SuggestedView
+              :labels="recommendedQuestions"
+              :disabled="businessStore.suggestedDisabled"
+              @suggested="onSuggested"
             />
           </div>
           <div
             v-if="isCompleted"
             :style="{
-              'background-color': '#ffffff',
-              'width': '80%',
-              'margin-left': '10%',
-              'margin-right': '10%',
-              'padding': '18px 15px',
+              'background-color': '#fff',
+              'width': '100%',
+              'margin-left': '0',
+              'margin-right': '0',
+              'padding': '18px 0px',
               'display': 'flex',
               'border-bottom-right-radius': '15px',
               'border-bottom-left-radius': '15px',
@@ -486,7 +646,20 @@ const onChartCompletedReader = function () {
             }"
           >
             <div style="display: flex">
-              <QatypeIcon :qa_type="qaType" />
+              <div
+                class="mode-pill"
+                :style="{
+                  color: currentQaOption.color,
+                  borderColor: `${currentQaOption.color}30`,
+                  backgroundColor: `${currentQaOption.color}10`,
+                }"
+              >
+                <div
+                  :class="currentQaOption.icon"
+                  class="text-14"
+                ></div>
+                <span class="font-medium">{{ currentQaOption.label }}</span>
+              </div>
             </div>
 
             <div style="display: flex">
@@ -620,167 +793,217 @@ const onChartCompletedReader = function () {
 </template>
 
 <style lang="scss">
+@use "sass:color";
+@use "@/styles/typography.scss" as *;
+
 .markdown-wrapper {
-  margin-left: 10%;
-  margin-right: 10%;
   background-color: #fff;
+  padding: 1px 0;
+  color: $text-color-primary;
 
-  // background: linear-gradient(to right, #f0effe, #d4eefc);
+  // 使用 Plus Jakarta Sans 字体 - 参考千问网站
+  font-family: "Plus Jakarta Sans", $font-family-base !important;
+  font-size: $font-size-md; // 16px
+  line-height: $line-height-relaxed; // 1.625
+  font-weight: $font-weight-normal;
+  letter-spacing: $letter-spacing-normal;
 
-  padding: 1px 18px;
-  border-top-right-radius: 16px;
-  border-top-left-radius: 16px;
-  color: #113;
-
-  /* 优化后的系统字体栈：优先使用系统原生字体 */
-
-  font-family:
-    /* macOS */ -apple-system,
-    /* Windows */ BlinkMacSystemFont,
-    /* 通用系统UI */ 'Segoe UI',
-    /* 开源跨平台 */ Roboto,
-    /* Linux */ Oxygen, Ubuntu, Cantarell,
-    /* fallback */ 'Open Sans', 'Helvetica Neue', Arial,
-    /* 终极兜底 */ sans-serif,
-    /* 现代浏览器推荐 */ system-ui,
-    /* 苹果新字体支持 */ "SF Pro Text";
-
-  /* 可选：基础字体大小与行高，提升可读性 */
-
-  font-size: 16px;
-  line-height: 1.7;
-  font-weight: 400;
-
-  /* 优化字体渲染 */
-
+  // 优化字体渲染
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  text-rendering: optimizelegibility;
+  text-rendering: optimizeLegibility;
+  font-feature-settings: "kern" 1, "liga" 1;
+  
+  // 确保所有子元素也使用正确的字体
+  * {
+    font-family: "Plus Jakarta Sans", $font-family-base !important;
+  }
+  
+  // 代码块保持等宽字体
+  code, pre, kbd, samp {
+    font-family: $font-family-mono !important;
+  }
 
+  // 标题样式
   h1 {
+    @include h1-style;
     font-size: 2em;
+    margin-top: 1.5em;
+    margin-bottom: 0.75em;
+    padding-bottom: 0.3em;
+    border-bottom: 2px solid #f0f0f0;
   }
 
   h2 {
-    font-size: 1.5em;
+    @include h2-style;
+    font-size: 1.75em;
+    margin-top: 1.25em;
+    margin-bottom: 0.6em;
     padding-bottom: 0.3em;
     border-bottom: 1px solid #f6f7fb;
   }
 
   h3 {
-    font-size: 1.25em;
+    @include h3-style;
+    font-size: 1.5em;
+    margin-top: 1em;
+    margin-bottom: 0.5em;
   }
 
   h4 {
-    font-size: 1em;
+    @include h4-style;
+    font-size: 1.25em;
+    margin-top: 0.875em;
+    margin-bottom: 0.5em;
   }
 
   h5 {
-    font-size: 0.875em;
+    @include h5-style;
+    font-size: 1.125em;
+    margin-top: 0.75em;
+    margin-bottom: 0.5em;
   }
 
   h6 {
-    font-size: 0.85em;
+    @include h6-style;
+    font-size: 1em;
+    margin-top: 0.625em;
+    margin-bottom: 0.5em;
   }
 
-  h1,
-  h2,
-  h3,
-  h4,
-  h5,
-  h6 {
-    margin: 0 auto;
-    line-height: 1.25;
-    margin-top: 20px; /* 添加顶部外边距，这里设置为20像素，你可以根据需要调整这个值 */
-    margin-bottom: 15px;
+  // 列表样式
+  ul, ol {
+    padding-left: 1.75em;
+    margin: 0.75em 0;
+    line-height: $line-height-relaxed;
+
+    li {
+      margin-bottom: 0.5em;
+      line-height: $line-height-relaxed;
+      list-style-position: outside;
+
+      & > p {
+        margin: 0.5em 0;
+        line-height: $line-height-relaxed;
+      }
+    }
   }
 
-  & ul,
-  ol {
+  ol ol, ul ul {
     padding-left: 1.5em;
-    line-height: 0.8;
+    margin-top: 0.25em;
+    margin-bottom: 0.25em;
   }
 
-  & ul,
-  li,
-  ol {
-    list-style-position: outside;
-    white-space: normal;
-  }
-
-  li {
-    line-height: 2;
-  }
-
-  ol ol {
-    padding-left: 20px;
-  }
-
-  ul ul {
-    padding-left: 20px;
-  }
-
-  hr {
-    margin: 16px 0;
-  }
-
-  a {
-    color: $color-default;
-    font-weight: bolder;
-    text-decoration: underline;
-    padding: 0 3px;
-    display: block; // 让 a 标签作为块级元素，实现换行
-  }
-
+  // 段落样式
   p {
-    line-height: 2;
-    margin: 10px 16px;
+    line-height: $line-height-relaxed;
+    margin: 0.875em 16px;
+    color: $text-color-primary;
 
     & > code {
-      // 添加透明背景的样式
-
-      background-color: transparent;
+      @include code-style;
+      background-color: rgba(105, 46, 230, 0.08);
       white-space: pre;
-      padding: 2px 4px;
+      padding: 2px 6px;
       border-radius: 4px;
       font-size: 0.9em;
+      color: #692ee6;
     }
 
     img {
       display: inline-block;
+      max-width: 100%;
+      height: auto;
+      border-radius: 4px;
     }
   }
 
-  li > p {
-    line-height: 2;
+  // 链接样式
+  a {
+    color: $color-primary;
+    font-weight: $font-weight-medium;
+    text-decoration: none;
+    padding: 0 2px;
+    border-bottom: 1px solid rgba(105, 46, 230, 0.3);
+    transition: all 0.2s ease;
+
+    &:hover {
+      color: color.scale($color-primary, $lightness: 10%);
+      border-bottom-color: rgba(105, 46, 230, 0.5);
+    }
+
+    &:active {
+      color: color.scale($color-primary, $lightness: -10%);
+    }
   }
 
+  // 引用样式
   blockquote {
-    padding: 10px;
-    margin: 20px 0;
-    border-left: 5px solid #ccc;
-    background-color: #f9f9f9;
-    color: #555;
+    padding: 12px 16px;
+    margin: 1em 0;
+    border-left: 4px solid $color-primary;
+    background-color: rgba(105, 46, 230, 0.04);
+    color: $text-color-secondary;
+    border-radius: 0 4px 4px 0;
+    font-style: italic;
 
     & > p {
       margin: 0;
+      line-height: $line-height-relaxed;
     }
   }
 
-  table {
-    border-collapse: collapse; /* 合并相邻单元格的边框 */
-    width: 100%;
+  // 分隔线样式
+  hr {
+    margin: 1.5em 0;
+    border: none;
+    border-top: 1px solid #e5e7eb;
+    background: none;
   }
 
-  th,
-  td {
-    border: 1px solid #f6f7fb; /* 将边框颜色设为红色 */
-    padding: 8px;
-    text-align: left;
+  // 表格样式
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 1em 0;
+    font-size: $font-size-base;
+    line-height: $line-height-normal;
   }
 
   th {
-    background-color: #f2f2f2; /* 可选：给表头设置背景色 */
+    background-color: #f8f9fa;
+    font-weight: $font-weight-semibold;
+    color: $text-color-primary;
+    padding: 12px 16px;
+    text-align: left;
+    border: 1px solid #e5e7eb;
+    font-size: $font-size-sm;
+    letter-spacing: $letter-spacing-wide;
+  }
+
+  td {
+    padding: 12px 16px;
+    border: 1px solid #e5e7eb;
+    text-align: left;
+    color: $text-color-primary;
+    line-height: $line-height-relaxed;
+
+    code {
+      @include code-style;
+      background-color: rgba(105, 46, 230, 0.08);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.9em;
+    }
+  }
+
+  tr:nth-child(even) {
+    background-color: #fafbfc;
+  }
+
+  tr:hover {
+    background-color: rgba(105, 46, 230, 0.02);
   }
 
   /* 添加图片样式，约束宽度 */
@@ -799,4 +1022,21 @@ const onChartCompletedReader = function () {
     color: #635eed;
   }
 }
+
+.mode-pill {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 13px;
+  border: 1px solid transparent;
+  transition: all 0.2s;
+  cursor: default;
+  font-weight: 500;
+}
+
 </style>
+
+
+

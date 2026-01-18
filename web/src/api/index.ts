@@ -5,7 +5,7 @@
 /**
  * Event Stream 调用大模型接口 Ollama3 (Fetch 调用)
  */
-export async function createOllama3Stylized(text, qa_type, uuid, chat_id, file_list) {
+export async function createOllama3Stylized(text, qa_type, uuid, chat_id, file_list, datasource_id) {
   const userStore = useUserStore()
   const token = userStore.getUserToken()
   const url = new URL(`${location.origin}/sanic/dify/get_answer`)
@@ -41,6 +41,7 @@ export async function createOllama3Stylized(text, qa_type, uuid, chat_id, file_l
       uuid,
       chat_id,
       file_list,
+      datasource_id,
     }),
     signal: controller.signal, // 添加超时信号
   })
@@ -91,9 +92,36 @@ export async function query_user_qa_record(page, limit, search_text, chat_id) {
     },
     body: JSON.stringify({
       page,
-      limit,
+      size: limit, // 后端期望的字段名是 size，不是 limit
       search_text,
       chat_id,
+    }),
+  })
+  return fetch(req)
+}
+
+/**
+ * 查询用户对话历史列表（优化版，只返回必要字段）
+ * @param page
+ * @param limit
+ * @param search_text
+ * @returns
+ */
+export async function query_user_record_list(page, limit, search_text) {
+  const userStore = useUserStore()
+  const token = userStore.getUserToken()
+  const url = new URL(`${location.origin}/sanic/user/query_user_record_list`)
+  const req = new Request(url, {
+    mode: 'cors',
+    method: 'post',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`, // 添加 token 到头部
+    },
+    body: JSON.stringify({
+      page,
+      size: limit, // 后端期望的字段名是 size，不是 limit
+      search_text,
     }),
   })
   return fetch(req)
@@ -118,6 +146,29 @@ export async function delete_user_record(ids) {
     },
     body: JSON.stringify({
       record_ids: ids,
+    }),
+  })
+  return fetch(req)
+}
+
+/**
+ * 获取记录SQL语句
+ * @param record_id
+ * @returns
+ */
+export async function get_record_sql(record_id) {
+  const userStore = useUserStore()
+  const token = userStore.getUserToken()
+  const url = new URL(`${location.origin}/sanic/user/get_record_sql`)
+  const req = new Request(url, {
+    mode: 'cors',
+    method: 'post',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`,
+    },
+    body: JSON.stringify({
+      record_id,
     }),
   })
   return fetch(req)
@@ -314,3 +365,5 @@ export async function stop_chat(task_id, qa_type) {
   })
   return fetch(req)
 }
+
+// 数据源相关 API 请使用 `./datasource` 模块
