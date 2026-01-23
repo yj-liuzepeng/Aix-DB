@@ -25,43 +25,20 @@
 
 ---
 
+Aix-DB is built on the **LangChain/LangGraph** framework, combined with **MCP Skills** multi-agent collaboration architecture, enabling end-to-end transformation from natural language to data insights.
 
+**Core Capabilities**: General Q&A · Data Q&A (Text2SQL) · Spreadsheet Q&A · Deep Research · Data Visualization · MCP Multi-Agent
 
-Aix-DB is built on the LangChain/LangGraph framework, combined with MCP (Model Context Protocol) **Skills** multi-agent collaboration architecture, enabling end-to-end transformation from natural language to data insights.
+**Product Features**: 📦 Ready to Use · 🔒 Secure & Controllable · 🔌 Easy Integration · 🎯 Increasingly Accurate
 
 ---
 
 ## Demo Video
 
 <p align="center">
-  <a href="https://github.com/user-attachments/assets/462f4e2e-86e0-4d2a-8b78-5d6ca390c03c">
-    <img src="https://github.com/user-attachments/assets/462f4e2e-86e0-4d2a-8b78-5d6ca390c03c" width="80%" />
-  </a>
+  <video src="https://github.com/user-attachments/assets/462f4e2e-86e0-4d2a-8b78-5d6ca390c03c" controls="controls" muted="muted" class="d-block rounded-bottom-2 border-top width-fit" style="max-height:640px; min-height: 200px; width: 80%;">
+  </video>
 </p>
-
----
-
-## Core Advantages
-
-| | Feature | Description |
-|:---:|:---|:---|
-| **📦** | **Ready to Use** | One-click Docker deployment, 8+ built-in database support, pre-configured AI models |
-| **🔒** | **Secure & Controllable** | Workspace-level resource isolation, fine-grained access control, JWT authentication |
-| **🔌** | **Easy Integration** | RESTful API, Web embedding support, compatible with Dify and other platforms |
-| **🎯** | **Increasingly Accurate** | Custom prompts, SQL example learning, Neo4j knowledge graph enhancement |
-
----
-
-## Features
-
-| Module | Description |
-|--------|-------------|
-| **General Q&A** | Knowledge-based Q&A powered by LangChain/LangGraph + MCP |
-| **Data Q&A** | Text2SQL natural language database queries with multi-table join analysis |
-| **Spreadsheet Q&A** | Intelligent CSV/Excel file analysis with multi-sheet joint queries |
-| **Deep Research** | Advanced research capabilities based on LangGraph/DeepAgent |
-| **Data Visualization** | Automatic chart generation with ECharts + AntV |
-| **MCP Integration** | Multi-model, multi-agent collaboration support |
 
 ---
 

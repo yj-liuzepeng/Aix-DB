@@ -25,43 +25,20 @@
 
 ---
 
+Aix-DB 基于 **LangChain/LangGraph** 框架，结合 **MCP Skills** 多智能体协作架构，实现自然语言到数据洞察的端到端转换。
 
+**核心能力**：通用问答 · 数据问答（Text2SQL） · 表格问答 · 深度搜索 · 数据可视化 · MCP 多智能体
 
-Aix-DB 基于 LangChain/LangGraph 框架，结合 MCP（Model Context Protocol）**Skills** 多智能体协作架构，实现自然语言到数据洞察的端到端转换
+**产品特点**：📦 开箱即用 · 🔒 安全可控 · 🔌 易于集成 · 🎯 越问越准
 
 ---
 
 ## 演示视频
 
 <p align="center">
-  <a href="https://github.com/user-attachments/assets/462f4e2e-86e0-4d2a-8b78-5d6ca390c03c">
-    <img src="https://github.com/user-attachments/assets/462f4e2e-86e0-4d2a-8b78-5d6ca390c03c" width="80%" />
-  </a>
+  <video src="https://github.com/user-attachments/assets/462f4e2e-86e0-4d2a-8b78-5d6ca390c03c" controls="controls" muted="muted" class="d-block rounded-bottom-2 border-top width-fit" style="max-height:640px; min-height: 200px; width: 80%;">
+  </video>
 </p>
-
----
-
-## 核心优势
-
-| | 特性 | 说明 |
-|:---:|:---|:---|
-| **📦** | **开箱即用** | Docker 一键部署，内置 8+ 数据库支持，预配置 AI 模型 |
-| **🔒** | **安全可控** | 工作空间资源隔离，细粒度权限管控，JWT 认证 |
-| **🔌** | **易于集成** | RESTful API，支持 Web 嵌入，可对接 Dify 等平台 |
-| **🎯** | **越问越准** | 自定义 Prompt，SQL 示例学习，Neo4j 知识图谱增强 |
-
----
-
-## 功能特性
-
-| 功能模块 | 说明 |
-|---------|------|
-| **通用问答** | 基于 LangChain/LangGraph + MCP 的知识问答 |
-| **数据问答** | Text2SQL 自然语言数据库查询，支持多表关联分析 |
-| **表格问答** | CSV/Excel 文件智能分析，支持多 Sheet 联合查询 |
-| **深度搜索** | 基于 LangGraph/DeepAgent 的深度研究能力 |
-| **数据可视化** | ECharts + AntV 自动图表生成 |
-| **MCP 集成** | 多模型、多智能体协作支持 |
 
 ---
 
